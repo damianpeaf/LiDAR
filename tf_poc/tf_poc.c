@@ -8,8 +8,8 @@
 #define BAUD_RATE 115200
 #define UART_ID1 uart1
 
-#define UART1_TX_PIN 4 // pin-6
-#define UART1_RX_PIN 5 // pin-7
+#define UART1_TX_PIN 8 // pin-6
+#define UART1_RX_PIN 9 // pin-7
 
 const uint LED_PIN = 25; // also set LED from gpio.h file
 static bool ret;

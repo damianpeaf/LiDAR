@@ -27,6 +27,10 @@ The goal of this project is to use a Raspberry Pi Pico to run a TF-Mini/S Lidar 
 - Open the serial monitor to see the output from the Pico. With screen command:
 
 ```bash
+ls /dev/tty.* # search for the Pico
+
+# Something like this:
+screen /dev/tty.usbmodemXXXX 115200 # replace XXXX with the number of the Pico
 screen /dev/ttyACM0 115200
 ```
 
