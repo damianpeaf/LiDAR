@@ -10,6 +10,8 @@ interface PointData {
   strength: number
 }
 
+// No props needed anymore
+
 function sphericalToCartesian(r: number, theta: number, phi: number) {
   const rad = (deg: number) => deg * (Math.PI / 180)
   
@@ -21,10 +23,10 @@ function sphericalToCartesian(r: number, theta: number, phi: number) {
   // phi = 0° is vertical up
   
   // Linear transformation: map [0, 60] to [0, 90]
-  const transformedPhi = phi * (90 / 60)
+  // const transformedPhi = phi * (90 / 60)
   
   const t = rad(theta)
-  const p = rad(transformedPhi)
+  const p = rad(phi)
   
   const x = r * Math.sin(p) * Math.cos(t)
   const y = r * Math.sin(p) * Math.sin(t)
@@ -36,10 +38,19 @@ function sphericalToCartesian(r: number, theta: number, phi: number) {
 export default function PointCloud() {
   const [points, setPoints] = useState<PointData[]>([])
 
+  // Load points from file
   useEffect(() => {
-    fetch('/puntos.json')
+    // Add a cache-busting parameter to force a fresh fetch
+    fetch(`/puntos.json?t=${new Date().getTime()}`)
       .then(res => res.json())
-      .then(setPoints)
+      .then(data => {
+        console.log('Loaded points from file:', data.length)
+        setPoints(data)
+      })
+      .catch(err => {
+        console.error('Error loading point cloud data:', err)
+        setPoints([])
+      })
   }, [])
 
   const positions = useMemo(() => {
@@ -80,30 +91,15 @@ export default function PointCloud() {
     const axesHelper = new THREE.AxesHelper(100)
     scene.add(axesHelper)
     
-    // Add grid helper for the XY plane
+    // Add grid helper for the XZ plane
     const gridHelper = new THREE.GridHelper(500, 50)
+    gridHelper.rotation.x = Math.PI / 2
     scene.add(gridHelper)
-    
-    // Add a circular plane to represent the phi=60° "floor" plane
-    const floorGeometry = new THREE.CircleGeometry(250, 64)
-    const floorMaterial = new THREE.MeshBasicMaterial({ 
-      color: 0x444444, 
-      transparent: true, 
-      opacity: 0.2,
-      side: THREE.DoubleSide
-    })
-    const floorPlane = new THREE.Mesh(floorGeometry, floorMaterial)
-    
-    // Rotate the plane to match phi=60°
-    floorPlane.rotation.x = Math.PI / 2 - (60 * Math.PI / 180)
-    
-    scene.add(floorPlane)
     
     // Clean up on unmount
     return () => {
       scene.remove(axesHelper)
       scene.remove(gridHelper)
-      scene.remove(floorPlane)
     }
   }, [scene])
 
@@ -172,6 +168,20 @@ export default function PointCloud() {
           opacity={0.8}
         />
       </points>
+      
+      {/* Point count display */}
+      <Html position={[-150, 150, 0]} distanceFactor={10}>
+        <div style={{ 
+          backgroundColor: 'rgba(0,0,0,0.7)', 
+          color: 'white', 
+          padding: '5px 10px', 
+          borderRadius: '5px',
+          fontSize: '12px',
+          whiteSpace: 'nowrap'
+        }}>
+          Points: {points.length}
+        </div>
+      </Html>
     </>
   )
 }
