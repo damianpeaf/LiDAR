@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LIDAR Dashboard - Three.js</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: 'Arial', sans-serif;
+        background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 100%);
+        color: white;
+        overflow-x: hidden;
+      }
+
+      .header {
+        background: rgba(0, 0, 0, 0.8);
+        backdrop-filter: blur(10px);
+        padding: 1rem 2rem;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .header h1 {
+        font-size: 1.5rem;
+        font-weight: 300;
+        color: #00ffff;
+        text-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+      }
+
+      .controls {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+      }
+
+      .btn {
+        background: linear-gradient(45deg, #00ffff, #0066cc);
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 5px;
+        color: white;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0, 255, 255, 0.3);
+      }
+
+      .btn.danger {
+        background: linear-gradient(45deg, #ff4444, #cc0000);
+      }
+
+      .btn.danger:hover {
+        box-shadow: 0 5px 15px rgba(255, 68, 68, 0.3);
+      }
+
+      .container {
+        display: grid;
+        grid-template-columns: 300px 1fr;
+        height: 100vh;
+        padding-top: 80px;
+      }
+
+      .sidebar {
+        background: rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(10px);
+        padding: 2rem;
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+        overflow-y: auto;
+      }
+
+      .stats-card,
+      .control-card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        backdrop-filter: blur(5px);
+      }
+
+      .stats-card h3,
+      .control-card h3 {
+        color: #00ffff;
+        margin-bottom: 1rem;
+        font-weight: 300;
+      }
+
+      .stat-item {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .stat-value {
+        color: #00ff88;
+        font-weight: bold;
+      }
+
+      .main-view {
+        position: relative;
+        overflow: hidden;
+      }
+
+      #threejs-container {
+        width: 100%;
+        height: 100%;
+        position: relative;
+      }
+
+      .view-controls {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        z-index: 100;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .view-btn {
+        background: rgba(0, 0, 0, 0.7);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .view-btn:hover,
+      .view-btn.active {
+        background: rgba(0, 255, 255, 0.2);
+        border-color: #00ffff;
+      }
+
+      .info-panel {
+        position: absolute;
+        bottom: 20px;
+        left: 20px;
+        background: rgba(0, 0, 0, 0.8);
+        padding: 1rem;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        min-width: 200px;
+      }
+
+      .switch {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1rem 0;
+      }
+
+      .switch input[type='checkbox'] {
+        appearance: none;
+        width: 50px;
+        height: 24px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 12px;
+        position: relative;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .switch input[type='checkbox']:checked {
+        background: #00ffff;
+      }
+
+      .switch input[type='checkbox']::before {
+        content: '';
+        position: absolute;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: white;
+        top: 2px;
+        left: 2px;
+        transition: all 0.3s ease;
+      }
+
+      .switch input[type='checkbox']:checked::before {
+        transform: translateX(26px);
+      }
+
+      .loading {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #00ffff;
+        font-size: 1.2rem;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 0.5;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+
+      .pulse {
+        animation: pulse 2s infinite;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h1>🎯 LIDAR Dashboard</h1>
+      <div class="controls">
+        <button class="btn" onclick="refreshData()">🔄 Actualizar</button>
+        <button class="btn danger" onclick="clearData()">🗑️ Limpiar</button>
+      </div>
+    </div>
+
+    <div class="container">
+      <div class="sidebar">
+        <div class="stats-card">
+          <h3>📊 Estadísticas</h3>
+          <div class="stat-item">
+            <span>Total de puntos:</span>
+            <span class="stat-value" id="total-points">0</span>
+          </div>
+          <div class="stat-item">
+            <span>Puntos visibles:</span>
+            <span class="stat-value" id="visible-points">0</span>
+          </div>
+          <div class="stat-item">
+            <span>FPS:</span>
+            <span class="stat-value" id="fps">0</span>
+          </div>
+          <div class="stat-item">
+            <span>Último dato:</span>
+            <span class="stat-value" id="last-update">N/A</span>
+          </div>
+        </div>
+
+        <div class="control-card">
+          <h3>🎛️ Controles</h3>
+
+          <div class="switch">
+            <input type="checkbox" id="auto-refresh" />
+            <label for="auto-refresh">Auto-actualizar</label>
+          </div>
+
+          <div class="switch">
+            <input type="checkbox" id="show-grid" checked />
+            <label for="show-grid">Mostrar rejilla</label>
+          </div>
+
+          <div class="switch">
+            <input type="checkbox" id="color-by-strength" checked />
+            <label for="color-by-strength">Color por intensidad</label>
+          </div>
+
+          <div class="switch">
+            <input type="checkbox" id="animate-points" />
+            <label for="animate-points">Animar puntos</label>
+          </div>
+
+          <div style="margin-top: 1rem">
+            <label>Máx. puntos mostrados:</label>
+            <input
+              type="range"
+              id="max-points"
+              min="100"
+              max="35000"
+              value="20000"
+              style="width: 100%; margin-top: 0.5rem"
+            />
+            <span id="max-points-value">1000</span>
+          </div>
+
+          <div style="margin-top: 1rem">
+            <label>Tamaño de punto:</label>
+            <input
+              type="range"
+              id="point-size"
+              min="0.1"
+              max="2"
+              step="0.1"
+              value="0.5"
+              style="width: 100%; margin-top: 0.5rem"
+            />
+            <span id="point-size-value">0.5</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="main-view">
+        <div id="threejs-container">
+          <div class="loading pulse">Cargando visualización...</div>
+        </div>
+
+        <div class="view-controls">
+          <button class="view-btn active" onclick="setView('3d')">
+            Vista 3D
+          </button>
+          <button class="view-btn" onclick="setView('top')">
+            Vista Superior
+          </button>
+          <button class="view-btn" onclick="setView('side')">
+            Vista Lateral
+          </button>
+          <button class="view-btn" onclick="setView('front')">
+            Vista Frontal
+          </button>
+        </div>
+
+        <div class="info-panel">
+          <div><strong>Controles:</strong></div>
+          <div>🖱️ Clic + Arrastrar: Rotar</div>
+          <div>🔄 Scroll: Zoom</div>
+          <div>⌘ + Arrastrar: Pan</div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+      // Configuración global
+      const FLASK_URL = 'http://localhost:3000'; // Cambia por tu URL
+
+      // Variables Three.js
+      let scene, camera, renderer, controls;
+      let pointCloud, gridHelper;
+      let lidarData = [];
+      let stats = {};
+      let animationId;
+      let lastFrameTime = 0;
+      let fps = 0;
+
+      // Configuración
+      let config = {
+        maxPoints: 1000,
+        pointSize: 0.5,
+        autoRefresh: false,
+        showGrid: true,
+        colorByStrength: true,
+        animatePoints: false,
+        currentView: '3d',
+      };
+
+      // Inicializar Three.js
+      function initThreeJS() {
+        const container = document.getElementById('threejs-container');
+        const loading = container.querySelector('.loading');
+
+        // Escena
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a1a);
+        scene.fog = new THREE.Fog(0x0a0a1a, 100, 1000);
+
+        // Cámara
+        camera = new THREE.PerspectiveCamera(
+          75,
+          container.clientWidth / container.clientHeight,
+          0.1,
+          1000
+        );
+        camera.position.set(50, 50, 50);
+
+        // Renderer
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        container.appendChild(renderer.domElement);
+        loading.style.display = 'none';
+
+        // Controles de órbita (implementación básica)
+        setupControls();
+
+        // Rejilla
+        gridHelper = new THREE.GridHelper(30, 15, 0x444444, 0x222222);
+        scene.add(gridHelper);
+
+        // Luces
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.7);
+        directionalLight.position.set(100, 100, 50);
+        directionalLight.castShadow = true;
+        scene.add(directionalLight);
+
+        // Iniciar loop de renderizado
+        animate();
+
+        // Manejar resize
+        window.addEventListener('resize', onWindowResize);
+      }
+
+      // Controles básicos de cámara
+      function setupControls() {
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        const canvas = renderer.domElement;
+
+        canvas.addEventListener('mousedown', (e) => {
+          isDragging = true;
+          previousMousePosition = { x: e.clientX, y: e.clientY };
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+          if (isDragging) {
+            const deltaMove = {
+              x: e.clientX - previousMousePosition.x,
+              y: e.clientY - previousMousePosition.y,
+            };
+
+            const rotationSpeed = 0.005;
+
+            // Rotar cámara alrededor del origen
+            const spherical = new THREE.Spherical();
+            spherical.setFromVector3(camera.position);
+
+            spherical.theta -= deltaMove.x * rotationSpeed;
+            spherical.phi += deltaMove.y * rotationSpeed;
+            spherical.phi = Math.max(
+              0.1,
+              Math.min(Math.PI - 0.1, spherical.phi)
+            );
+
+            camera.position.setFromSpherical(spherical);
+            camera.lookAt(0, 0, 0);
+
+            previousMousePosition = { x: e.clientX, y: e.clientY };
+          }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+          isDragging = false;
+        });
+
+        canvas.addEventListener('wheel', (e) => {
+          const zoomSpeed = 0.1;
+          const direction = camera.position.clone().normalize();
+          camera.position.add(direction.multiplyScalar(e.deltaY * zoomSpeed));
+
+          // Limitar zoom
+          const distance = camera.position.length();
+          if (distance < 10) camera.position.normalize().multiplyScalar(10);
+          if (distance > 500) camera.position.normalize().multiplyScalar(500);
+        });
+      }
+
+      // Crear nube de puntos
+      function createPointCloud(data) {
+        if (pointCloud) {
+          scene.remove(pointCloud);
+          pointCloud.geometry.dispose();
+          pointCloud.material.dispose();
+        }
+
+        if (!data.length) return;
+
+        const maxPoints = Math.min(data.length, config.maxPoints);
+        const recentData = data.slice(-maxPoints);
+
+        const geometry = new THREE.BufferGeometry();
+        const positions = [];
+        const colors = [];
+        const sizes = [];
+
+        // Calcular rango de intensidades para colorear
+        const strengths = recentData.map((p) => p.s);
+        const minStrength = Math.min(...strengths);
+        const maxStrength = Math.max(...strengths);
+
+        recentData.forEach((point, index) => {
+          // Convertir coordenadas esféricas a cartesianas
+          const r = point.r;
+          const theta = THREE.MathUtils.degToRad(point.t); // pan
+          const phi = THREE.MathUtils.degToRad(90 - point.f); // tilt (convertir a esférica estándar)
+
+          const x = r * Math.sin(phi) * Math.cos(theta);
+          const y = r * Math.cos(phi);
+          const z = r * Math.sin(phi) * Math.sin(theta);
+
+          positions.push(x, y, z);
+
+          // Color basado en intensidad o distancia
+          let color = new THREE.Color();
+          if (config.colorByStrength) {
+            const normalizedStrength =
+              (point.s - minStrength) / (maxStrength - minStrength);
+            color.setHSL(0.7 - normalizedStrength * 0.7, 1, 0.5); // De azul a rojo
+          } else {
+            const normalizedDistance = Math.min(r / 100, 1);
+            color.setHSL(0.3 - normalizedDistance * 0.3, 1, 0.5); // Verde a rojo por distancia
+          }
+          colors.push(color.r, color.g, color.b);
+
+          // Tamaño variable
+          const age = (maxPoints - index) / maxPoints;
+          sizes.push(config.pointSize * (0.5 + age * 0.5));
+        });
+
+        geometry.setAttribute(
+          'position',
+          new THREE.Float32BufferAttribute(positions, 3)
+        );
+        geometry.setAttribute(
+          'color',
+          new THREE.Float32BufferAttribute(colors, 3)
+        );
+        geometry.setAttribute(
+          'size',
+          new THREE.Float32BufferAttribute(sizes, 1)
+        );
+
+        // Material de puntos con shader personalizado
+        const material = new THREE.ShaderMaterial({
+          uniforms: {
+            time: { value: 0 },
+            animate: { value: config.animatePoints },
+          },
+          vertexShader: `
+                    attribute float size;
+                    uniform float time;
+                    uniform bool animate;
+                    varying vec3 vColor;
+                    
+                    void main() {
+                        vColor = color;
+                        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                        
+                        float animationFactor = animate ? (sin(time * 2.0 + position.x * 0.1) * 0.3 + 1.0) : 1.0;
+                        gl_PointSize = size * animationFactor * (300.0 / -mvPosition.z);
+                        gl_Position = projectionMatrix * mvPosition;
+                    }
+                `,
+          fragmentShader: `
+                    varying vec3 vColor;
+                    
+                    void main() {
+                        float r = distance(gl_PointCoord, vec2(0.5, 0.5));
+                        if (r > 0.5) discard;
+                        
+                        float alpha = 1.0 - smoothstep(0.3, 0.5, r);
+                        gl_FragColor = vec4(vColor, alpha);
+                    }
+                `,
+          transparent: true,
+          vertexColors: true,
+        });
+
+        pointCloud = new THREE.Points(geometry, material);
+        scene.add(pointCloud);
+
+        updateStats();
+      }
+
+      // Obtener datos del servidor
+      async function fetchData() {
+        try {
+          const response = await fetch(`${FLASK_URL}/api/lidar-data`);
+          if (response.ok) {
+            lidarData = await response.json();
+            createPointCloud(lidarData);
+            return true;
+          }
+        } catch (error) {
+          console.error('Error fetching data:', error);
+          showNotification('Error obteniendo datos', 'error');
+        }
+        return false;
+      }
+
+      // Obtener estadísticas
+      async function fetchStats() {
+        try {
+          const response = await fetch(`${FLASK_URL}/api/lidar-data/stats`);
+          if (response.ok) {
+            stats = await response.json();
+            updateStatsDisplay();
+          }
+        } catch (error) {
+          console.error('Error fetching stats:', error);
+        }
+      }
+
+      // Limpiar datos
+      async function clearData() {
+        try {
+          const response = await fetch(`${FLASK_URL}/api/lidar-data/clear`, {
+            method: 'DELETE',
+          });
+          if (response.ok) {
+            lidarData = [];
+            stats = {};
+            if (pointCloud) {
+              scene.remove(pointCloud);
+              pointCloud.geometry.dispose();
+              pointCloud.material.dispose();
+              pointCloud = null;
+            }
+            updateStats();
+            showNotification('Datos eliminados correctamente', 'success');
+          }
+        } catch (error) {
+          console.error('Error clearing data:', error);
+          showNotification('Error eliminando datos', 'error');
+        }
+      }
+
+      // Actualizar datos
+      async function refreshData() {
+        await fetchData();
+        await fetchStats();
+      }
+
+      // Actualizar estadísticas en pantalla
+      function updateStats() {
+        document.getElementById('total-points').textContent = lidarData.length;
+        document.getElementById('visible-points').textContent = pointCloud
+          ? Math.min(lidarData.length, config.maxPoints)
+          : 0;
+        document.getElementById('fps').textContent = Math.round(fps);
+
+        if (lidarData.length > 0) {
+          const lastPoint = lidarData[lidarData.length - 1];
+          const timestamp =
+            lastPoint.timestamp || new Date().toLocaleTimeString();
+          document.getElementById('last-update').textContent = timestamp;
+        }
+      }
+
+      function updateStatsDisplay() {
+        // Aquí puedes agregar más estadísticas del servidor si las necesitas
+      }
+
+      // Cambiar vista de cámara
+      function setView(view) {
+        config.currentView = view;
+
+        // Actualizar botones
+        document
+          .querySelectorAll('.view-btn')
+          .forEach((btn) => btn.classList.remove('active'));
+        event.target.classList.add('active');
+
+        // Animar cámara a nueva posición
+        const targetPosition = new THREE.Vector3();
+
+        switch (view) {
+          case '3d':
+            targetPosition.set(50, 50, 50);
+            break;
+          case 'top':
+            targetPosition.set(0, 100, 0);
+            break;
+          case 'side':
+            targetPosition.set(100, 0, 0);
+            break;
+          case 'front':
+            targetPosition.set(0, 0, 100);
+            break;
+        }
+
+        animateCameraTo(targetPosition);
+      }
+
+      // Animar cámara
+      function animateCameraTo(targetPosition) {
+        const startPosition = camera.position.clone();
+        const startTime = Date.now();
+        const duration = 1000; // 1 segundo
+
+        function updateCamera() {
+          const elapsed = Date.now() - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+
+          // Easing suave
+          const eased = 1 - Math.pow(1 - progress, 3);
+
+          camera.position.lerpVectors(startPosition, targetPosition, eased);
+          camera.lookAt(0, 0, 0);
+
+          if (progress < 1) {
+            requestAnimationFrame(updateCamera);
+          }
+        }
+
+        updateCamera();
+      }
+
+      // Loop de animación
+      function animate() {
+        animationId = requestAnimationFrame(animate);
+
+        const currentTime = Date.now();
+        if (lastFrameTime) {
+          fps = 1000 / (currentTime - lastFrameTime);
+        }
+        lastFrameTime = currentTime;
+
+        // Actualizar uniforms del shader
+        if (pointCloud && pointCloud.material.uniforms) {
+          pointCloud.material.uniforms.time.value = currentTime * 0.001;
+          pointCloud.material.uniforms.animate.value = config.animatePoints;
+        }
+
+        // Rotar rejilla suavemente si está animada
+        if (config.animatePoints && gridHelper) {
+          gridHelper.rotation.y += 0.001;
+        }
+
+        renderer.render(scene, camera);
+
+        // Actualizar estadísticas ocasionalmente
+        if (Math.floor(currentTime / 100) % 10 === 0) {
+          updateStats();
+        }
+      }
+
+      // Manejar resize de ventana
+      function onWindowResize() {
+        const container = document.getElementById('threejs-container');
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+      }
+
+      // Mostrar notificaciones
+      function showNotification(message, type = 'info') {
+        // Implementación simple de notificación
+        const notification = document.createElement('div');
+        notification.textContent = message;
+        notification.style.cssText = `
+                position: fixed;
+                top: 100px;
+                right: 20px;
+                background: ${
+                  type === 'error'
+                    ? '#ff4444'
+                    : type === 'success'
+                    ? '#44ff44'
+                    : '#4444ff'
+                };
+                color: white;
+                padding: 1rem;
+                border-radius: 5px;
+                z-index: 2000;
+                animation: slideIn 0.3s ease;
+            `;
+
+        document.body.appendChild(notification);
+
+        setTimeout(() => {
+          notification.style.animation = 'slideOut 0.3s ease';
+          setTimeout(() => notification.remove(), 300);
+        }, 3000);
+      }
+
+      // Event listeners para controles
+      document.addEventListener('DOMContentLoaded', () => {
+        // Inicializar Three.js
+        initThreeJS();
+
+        // Cargar datos iniciales
+        refreshData();
+
+        // Auto-refresh
+        document
+          .getElementById('auto-refresh')
+          .addEventListener('change', (e) => {
+            config.autoRefresh = e.target.checked;
+            if (config.autoRefresh) {
+              startAutoRefresh();
+              showNotification('Auto-actualización activada', 'success');
+            } else {
+              stopAutoRefresh();
+              showNotification('Auto-actualización desactivada', 'info');
+            }
+          });
+
+        // Mostrar/ocultar rejilla
+        document.getElementById('show-grid').addEventListener('change', (e) => {
+          config.showGrid = e.target.checked;
+          gridHelper.visible = config.showGrid;
+        });
+
+        // Color por intensidad
+        document
+          .getElementById('color-by-strength')
+          .addEventListener('change', (e) => {
+            config.colorByStrength = e.target.checked;
+            createPointCloud(lidarData);
+          });
+
+        // Animar puntos
+        document
+          .getElementById('animate-points')
+          .addEventListener('change', (e) => {
+            config.animatePoints = e.target.checked;
+          });
+
+        // Máximo de puntos
+        const maxPointsSlider = document.getElementById('max-points');
+        const maxPointsValue = document.getElementById('max-points-value');
+        maxPointsSlider.addEventListener('input', (e) => {
+          config.maxPoints = parseInt(e.target.value);
+          maxPointsValue.textContent = config.maxPoints;
+          createPointCloud(lidarData);
+        });
+
+        // Tamaño de punto
+        const pointSizeSlider = document.getElementById('point-size');
+        const pointSizeValue = document.getElementById('point-size-value');
+        pointSizeSlider.addEventListener('input', (e) => {
+          config.pointSize = parseFloat(e.target.value);
+          pointSizeValue.textContent = config.pointSize;
+          createPointCloud(lidarData);
+        });
+      });
+
+      // Auto-refresh
+      let autoRefreshInterval;
+
+      function startAutoRefresh() {
+        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+        autoRefreshInterval = setInterval(refreshData, 2000); // Cada 2 segundos
+      }
+
+      function stopAutoRefresh() {
+        if (autoRefreshInterval) {
+          clearInterval(autoRefreshInterval);
+          autoRefreshInterval = null;
+        }
+      }
+
+      // Estilos adicionales para animaciones
+      const style = document.createElement('style');
+      style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOut {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(100%); opacity: 0; }
+            }
+        `;
+      document.head.appendChild(style);
+    </script>
+  </body>
+</html>
