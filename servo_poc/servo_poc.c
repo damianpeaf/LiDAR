@@ -2,7 +2,7 @@
 #include "pico/stdlib.h"
 #include "hardware/pwm.h"
 
-#define SERVO_PIN 4
+#define SERVO_PIN 10
 
 // Convierte un ángulo (0° a 180°) en un pulso entre 1.0ms y 2.0ms
 float angle_to_pulse_ms(int angle)
