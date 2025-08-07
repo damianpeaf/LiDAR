@@ -1,11 +1,11 @@
-from machine import Pin, PWM, UART, Timer
+from machine import Pin, PWM, UART
 import time
 import network
 import urequests
+import _thread
 
-# ---- Config WiFi ----
-SSID = "CLARO1_8E2AAB"  # Replace with your WiFi SSID
-PASSWORD = "841qlCREpc"  # Replace with your WiFi password
+SSID = "CLARO1_8E2AAB"
+PASSWORD = "841qlCREpc"
 API_URL = "http://192.168.1.18:3000/api/lidar-data"
 
 def conectar_wifi():
@@ -18,169 +18,136 @@ def conectar_wifi():
             time.sleep(1)
     print("Conectado a WiFi:", wlan.ifconfig())
 
-# Configuración de servos
-pan_servo = PWM(Pin(10))  # GP10: servo de paneo
-tilt_servo = PWM(Pin(11))  # GP11: servo de inclinación
+pan_servo = PWM(Pin(10))
+tilt_servo = PWM(Pin(11))
 pan_servo.freq(50)
 tilt_servo.freq(50)
 
 def mover_servo(servo, angulo):
-    duty_min = 1638    # ≈ 0.5 ms
-    duty_max = 8192    # ≈ 2.5 ms
-    duty = int(duty_min + (angulo / 180) * (duty_max - duty_min))
+    """
+    Mueve el servo al ángulo especificado (0 a 180 grados)
+    
+    Parámetros:
+    servo: Objeto PWM configurado para el servo
+    angulo: Ángulo deseado en grados (0-180)
+    """
+    # Validar el rango del ángulo
+    if not 0 <= angulo <= 180:
+        raise ValueError("El ángulo debe estar entre 0 y 180 grados")
+    
+    # Calcular el duty cycle (ancho de pulso)
+    # MG996R: 500µs (0°) a 2500µs (180°)
+    # Escala de 16 bits (65535) para Raspberry Pi Pico
+    pulse_min = 1638   # 500µs / 20ms * 65535 ≈ 1638
+    pulse_max = 8192   # 2500µs / 20ms * 65535 ≈ 8192
+    
+    # Convertir ángulo a valor PWM
+    duty = int(pulse_min + (pulse_max - pulse_min) * (angulo / 180))
+    
+    # Aplicar el duty cycle al servo
     servo.duty_u16(duty)
+    
+    # Pequeña pausa para permitir que el servo alcance la posición
+    time.sleep_ms(20)
 
-# UART para LIDAR
-uart1 = UART(1, baudrate=115200, tx=Pin(8), rx=Pin(9))  # GP8: TX, GP9: RX
+uart1 = UART(1, baudrate=115200, tx=Pin(8), rx=Pin(9))
 
-def read_lidar_fast():
-    """Lectura rápida del LIDAR sin timeouts largos"""
-    if uart1.any() >= 9:
-        data = uart1.read(9)
-        if data and len(data) == 9 and data[0] == 0x59 and data[1] == 0x59:
-            checksum = sum(data[:8]) & 0xFF
-            if checksum == data[8]:
-                dist = data[2] | (data[3] << 8)
-                strength = data[4] | (data[5] << 8)
-                return (dist, strength)
-    return None
+def read_lidar():
+    if uart1.any():
+        uart1.read()
+    timeout = 0
+    while uart1.any() < 9 and timeout < 100:
+        time.sleep_ms(1)
+        timeout += 1
+    if uart1.any() < 9:
+        return None
+    data = uart1.read(9)
+    if not data or len(data) < 9:
+        return None
+    if data[0] != 0x59 or data[1] != 0x59:
+        return None
+    checksum = sum(data[:8]) & 0xFF
+    if checksum != data[8]:
+        return None
+    dist = data[2] | (data[3] << 8)
+    strength = data[4] | (data[5] << 8)
+    return (dist, strength)
 
-# Variables globales
-data_buffer = []
-scan_active = False
-current_pan = 0.0
-current_tilt = 0.0
-pan_direction = 1  # 1 para adelante, -1 para atrás
-tilt_increment = 0.5  # Incremento más pequeño para movimiento más suave
+data = []
+data_lock = _thread.allocate_lock()
+send_pending = False
 
-# Parámetros de velocidad ultra rápida
-PAN_SPEED = 2.0  # Grados por step (más rápido)
-TILT_SPEED = 0.5  # Grados por step para tilt
-SCAN_INTERVAL_MS = 5  # Intervalo de escaneo en milisegundos (ultra rápido)
+def enviar_datos_worker():
+    global data, send_pending
+    while True:
+        if send_pending:
+            with data_lock:
+                if data:
+                    try:
+                        data_str = ",".join([str(item) for item in sum(data, ())])
+                        headers = {'Content-Type': 'text/plain'}
+                        response = urequests.post(API_URL, data=data_str, headers=headers)
+                        response.close()
+                        print("Datos enviados exitosamente")
+                        data = []
+                        send_pending = False
+                    except Exception as e:
+                        print("Error enviando datos:", e)
+                        send_pending = False
+        time.sleep_ms(100)
 
-def enviar_datos_api():
-    global data_buffer
-    if not data_buffer:
-        return
-    
-    try:
-        # Enviar en lotes más grandes para eficiencia
-        data_str = ",".join([str(item) for item in sum(data_buffer, ())])
-        headers = {'Content-Type': 'text/plain'}
-        response = urequests.post(API_URL, data=data_str, headers=headers)
-        response.close()
-        print(f"Enviados {len(data_buffer)} puntos")
-        data_buffer = []
-    except Exception as e:
-        print("Error enviando datos:", e)
-
-def scan_step():
-    """Función que ejecuta un paso del escaneo continuo"""
-    global current_pan, current_tilt, pan_direction, data_buffer, scan_active
-    
-    if not scan_active:
-        return
-    
-    # Mover servo de paneo continuamente
-    current_pan += PAN_SPEED * pan_direction
-    
-    # Cambiar dirección y avanzar tilt cuando llegue a los límites
-    if current_pan >= 180:
-        current_pan = 180
-        pan_direction = -1
-        current_tilt += TILT_SPEED
-        
-        # Enviar datos cada vez que completa una pasada
-        if data_buffer:
-            enviar_datos_api()
-            
-    elif current_pan <= 0:
-        current_pan = 0
-        pan_direction = 1
-        current_tilt += TILT_SPEED
-        
-        # Enviar datos cada vez que completa una pasada
-        if data_buffer:
-            enviar_datos_api()
-    
-    # Verificar si terminó el escaneo
-    if current_tilt > 135:
-        scan_active = False
-        print("Escaneo completado!")
-        return
-    
-    # Mover servos a posiciones actuales
-    mover_servo(pan_servo, int(current_pan))
-    mover_servo(tilt_servo, int(current_tilt))
-    
-    # Leer LIDAR inmediatamente (sin esperas)
-    result = read_lidar_fast()
-    if result:
-        dist, strength = result
-        if strength > 10:  # Filtrar lecturas débiles
-            data_buffer.append((dist, int(current_pan), int(current_tilt), strength))
-    
-    print(f"Pan: {current_pan:.1f}°, Tilt: {current_tilt:.1f}°, Buffer: {len(data_buffer)}")
-
-# Timer para escaneo continuo ultra rápido
-scan_timer = Timer()
-
-def iniciar_escaneo_continuo():
-    """Inicia el escaneo continuo ultra rápido"""
-    global scan_active, current_pan, current_tilt, pan_direction
-    
-    print("Iniciando escaneo continuo ultra rápido...")
-    
-    # Reset de variables
-    current_pan = 0.0
-    current_tilt = 0.0
-    pan_direction = 1
-    scan_active = True
-    
-    # Posición inicial
-    mover_servo(pan_servo, 0)
-    mover_servo(tilt_servo, 0)
-    time.sleep(0.5)  # Solo una espera inicial
-    
-    # Limpiar buffer UART
-    uart1.read()
-    
-    # Iniciar timer para escaneo ultra rápido
-    scan_timer.init(period=SCAN_INTERVAL_MS, mode=Timer.PERIODIC, callback=lambda t: scan_step())
-
-def detener_escaneo():
-    """Detiene el escaneo continuo"""
-    global scan_active
-    scan_active = False
-    scan_timer.deinit()
-    
-    # Enviar datos restantes
-    if data_buffer:
-        enviar_datos_api()
+def trigger_send():
+    global send_pending
+    send_pending = True
 
 def main():
-    print("Iniciando sistema de escaneo LIDAR ultra rápido")
+    print("Iniciando WiFi y sistema de escaneo")
     conectar_wifi()
+    print("WiFi conectado")
+
+    _thread.start_new_thread(enviar_datos_worker, ())
+
+    tilt_max = 135
+    tilt_actual = 0
     
-    try:
-        iniciar_escaneo_continuo()
-        
-        # Mantener el programa corriendo
-        while scan_active:
-            time.sleep(0.1)  # Chequeo periódico mínimo
-            
-        # Enviar datos finales
-        if data_buffer:
-            enviar_datos_api()
-            
-        print("Escaneo completado!")
-        
-    except KeyboardInterrupt:
-        print("Escaneo interrumpido por usuario")
-        detener_escaneo()
-    except Exception as e:
-        print(f"Error durante escaneo: {e}")
-        detener_escaneo()
+    mover_servo(pan_servo, 0)
+    mover_servo(tilt_servo, tilt_actual)
+
+    print("Posicionando servos...")
+    time.sleep(2)
+    print("Comenzando escaneo LIDAR...")
+
+    while tilt_actual <= tilt_max:
+        for pan in range(0, 181, 1):
+            mover_servo(pan_servo, pan)
+            print(f"Paneo: {pan}°, Tilt: {tilt_actual}°")
+            result = read_lidar()
+            if result:
+                dist, strength = result
+                with data_lock:
+                    data.append((dist, pan, tilt_actual, strength))
+
+        tilt_actual += 1
+        if tilt_actual <= tilt_max:
+            mover_servo(tilt_servo, tilt_actual)
+
+        trigger_send()
+
+        for pan in range(180, -1, -1):
+            mover_servo(pan_servo, pan)
+            print(f"Paneo: {pan}°, Tilt: {tilt_actual}°")
+            result = read_lidar()
+            if result:
+                dist, strength = result
+                if strength > 10:
+                    with data_lock:
+                        data.append((dist, pan, tilt_actual, strength))
+
+        tilt_actual += 1
+        if tilt_actual <= tilt_max:
+            mover_servo(tilt_servo, tilt_actual)
+
+        trigger_send()
 
 if __name__ == "__main__":
     main()
