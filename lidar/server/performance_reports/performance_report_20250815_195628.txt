@@ -1,0 +1,81 @@
+============================================================
+REPORTE DE RENDIMIENTO - RASPBERRY PI PICO (MICROPYTHON)
+============================================================
+Fecha: 2025-08-15T19:56:28.918515
+
+RESUMEN GENERAL:
+--------------------
+• Clientes totales: 1
+• Clientes activos: 1
+• Mensajes totales: 1110
+• Bytes totales: 461,477
+• Errores totales: 0
+• Velocidad promedio: 25.55 msg/s
+• Throughput promedio: 10,622 bytes/s
+• Clientes web conectados: 0
+
+DETALLE POR CLIENTE:
+--------------------
+
+🔸 Cliente: 172.23.0.1:45970
+   Duración: 43.45s
+   Mensajes: 1110
+   Bytes: 461,477
+   Velocidad: 25.55 msg/s
+   Throughput: 10,622 bytes/s
+   Tasa de error: 0.0%
+   Tamaño promedio mensaje: 415.75 bytes
+   Rango tamaño: 371-432 bytes
+   Intervalo promedio: 0.034s
+   Rango intervalos: 0.0-0.098s
+
+
+============================================================
+           REPORTE DE ESTADÍSTICAS DE RENDIMIENTO
+============================================================
+Tiempo total de ejecución: 43.17 segundos
+
+--- CONECTIVIDAD ---
+Intentos de conexión WiFi: 1
+WiFi conectado exitosamente: SÍ
+WebSocket conectado exitosamente: SÍ
+Errores de conexión: 0
+
+--- LECTURA LIDAR (UART) ---
+Bytes leídos desde UART: 179883
+Timeouts de lectura UART: 0
+
+--- PROCESAMIENTO DE FRAMES ---
+Frames recibidos: 3586
+Frames válidos: 2517
+Frames inválidos (total): 1069
+  - Por header incorrecto: 0
+  - Por tamaño incorrecto: 0
+  - Por CRC incorrecto: 1069
+Tasa de éxito de frames: 70.19%
+Frames por segundo: 83.06
+
+--- PUNTOS LIDAR ---
+Puntos totales procesados: 30204
+Puntos válidos (distancia > 0): 30197
+Tasa de puntos válidos: 99.98%
+Puntos por segundo: 699.60
+
+--- TRANSMISIÓN WEBSOCKET ---
+Mensajes WebSocket enviados: 2516
+Errores de envío WebSocket: 0
+Bytes enviados por WebSocket: 1066196
+Mensajes WebSocket por segundo: 58.28
+
+--- RENDIMIENTO DE PROCESAMIENTO ---
+Tiempo promedio por frame: 4.16 ms
+Tiempo máximo por frame: 15 ms
+Tiempo mínimo por frame: 3 ms
+
+--- THROUGHPUT GENERAL ---
+Throughput de datos UART: 4166.56 bytes/sec
+Throughput WebSocket: 24695.90 bytes/sec
+============================================================
+Fin del reporte de estadísticas
+============================================================
+

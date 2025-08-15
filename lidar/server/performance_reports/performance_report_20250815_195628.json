@@ -1,0 +1,35 @@
+{
+  "timestamp": "2025-08-15T19:56:28.918515",
+  "report_type": "Pi Pico MicroPython Performance Analysis",
+  "clients": {
+    "172.23.0.1:45970": {
+      "duration_seconds": 43.45,
+      "total_messages": 1110,
+      "total_bytes": 461477,
+      "messages_per_second": 25.55,
+      "bytes_per_second": 10622.0,
+      "json_decode_errors": 0,
+      "connection_errors": 0,
+      "send_errors": 0,
+      "error_rate_percent": 0.0,
+      "avg_message_size_bytes": 415.75,
+      "min_message_size_bytes": 371,
+      "max_message_size_bytes": 432,
+      "median_message_size_bytes": 419.0,
+      "avg_interval_seconds": 0.034,
+      "min_interval_seconds": 0.0,
+      "max_interval_seconds": 0.098,
+      "median_interval_seconds": 0.045
+    }
+  },
+  "summary": {
+    "total_clients": 1,
+    "active_clients": 1,
+    "total_messages_all_clients": 1110,
+    "total_bytes_all_clients": 461477,
+    "total_errors_all_clients": 0,
+    "avg_messages_per_second": 25.55,
+    "avg_bytes_per_second": 10621.82,
+    "web_clients_connected": 0
+  }
+}
