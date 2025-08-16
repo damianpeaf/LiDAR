@@ -10,7 +10,7 @@ from time import sleep
 uart = UART(1, 230400, tx=Pin(8), rx=Pin(9))
 
 SSID = "CLARO1_8E2AAB"
-PASSWORD = "841qlCREpc"
+PASSWORD = ""
 API_URL = "http://192.168.1.24:3000/api/ld19-lidar"
 
 HEADER = 0x54

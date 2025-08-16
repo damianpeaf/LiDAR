@@ -79,3 +79,55 @@ Throughput WebSocket: 24695.90 bytes/sec
 Fin del reporte de estadísticas
 ============================================================
 
+
+
+============================================================
+REPORTE DE RENDIMIENTO - LIDAR MICROPYTHON
+============================================================
+Tiempo de ejecución: 30.00 segundos
+Frecuencia de muestreo UART: 230400 baud
+
+--- DATOS PROCESADOS ---
+Bytes recibidos: 325,410
+Bytes procesados: 294,455
+Frames recibidos: 6,265
+Frames procesados exitosos: 4,156
+Puntos LIDAR procesados: 49,765
+
+--- TASAS DE PROCESAMIENTO ---
+Bytes/s: 10845
+Frames/s: 138.5
+Puntos/s: 1659
+
+--- ERRORES ---
+Errores de header: 0
+Errores de tamaño: 0
+dTimeouts UART: 0
+Tasa de error: 33.66%
+
+--- TIEMPOS DE OPERACIÓN (microsegundos) ---
+Tiempo total en cálculo CRC: 2,988,973
+Tiempo total en parsing: 22,044,590
+Tiempo total en lectura UART: 2,476,782
+Tiempo promedio por frame: 6429 µs
+Tiempo mínimo por frame: 5493 µs
+Tiempo máximo por frame: 14376 µs
+Tiempo promedio CRC por frame: 719 µs
+Tiempo promedio parsing por frame: 5304 µs
+
+--- DATOS DEL LIDAR ---
+Rango de ángulos: 0.0° - 359.3°
+Ángulos únicos cubiertos: 360
+Cobertura angular: 100.0%
+Distancia mínima: 23 mm
+Distancia máxima: 63020 mm
+Intensidad mínima: 2
+Intensidad máxima: 255
+Intensidad promedio: 193.7
+
+--- EFICIENCIA ---
+Tasa de éxito de frames: 66.34%
+CPU usado en CRC: 9.96%
+CPU usado en parsing: 73.47%
+CPU usado en UART: 8.25%
+============================================================

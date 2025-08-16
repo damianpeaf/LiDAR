@@ -5,7 +5,7 @@ import urequests
 
 # ---- Config WiFi ----
 SSID = "CLARO1_8E2AAB"  # Replace with your WiFi SSID
-PASSWORD = "841qlCREpc"  # Replace with your WiFi password
+PASSWORD = ""  # Replace with your WiFi password
 API_URL = "http://192.168.1.18:3000/api/lidar-data"
 
 def conectar_wifi():

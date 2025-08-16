@@ -11,7 +11,7 @@ uart = UART(1, 230400, tx=Pin(8), rx=Pin(9))
 
 # Configuración de red y WebSocket
 SSID = "CLARO1_8E2AAB"
-PASSWORD = "841qlCREpc"
+PASSWORD = ""
 API_URL = "192.168.1.24"
 PORT = 3000
 

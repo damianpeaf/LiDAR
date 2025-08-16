@@ -5,7 +5,7 @@ import urequests
 import _thread
 
 SSID = "CLARO1_8E2AAB"
-PASSWORD = "841qlCREpc"
+PASSWORD = ""
 API_URL = "http://192.168.1.18:3000/api/lidar-data"
 
 def conectar_wifi():
