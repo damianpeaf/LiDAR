@@ -1,0 +1,51 @@
+
+============================================================
+REPORTE DE RENDIMIENTO - LIDAR PICO SDK C
+============================================================
+Tiempo de ejecución: 30.00 segundos
+Frecuencia de muestreo UART: 230400 baud
+
+--- DATOS PROCESADOS ---
+Bytes recibidos: 585370
+Bytes procesados: 585338
+Frames recibidos: 12454
+Frames procesados exitosos: 12451
+Puntos LIDAR procesados: 149359
+
+--- TASAS DE PROCESAMIENTO ---
+Bytes/s: 19511
+Frames/s: 415.0
+Puntos/s: 4978
+
+--- ERRORES ---
+Errores de header: 100
+Errores de tamaño: 0
+Timeouts UART: 0
+Tasa de error: 0.02%
+
+--- TIEMPOS DE OPERACIÓN (microsegundos) ---
+Tiempo total en cálculo CRC: 44626
+Tiempo total en parsing: 956268
+Tiempo total en lectura UART: 24864447
+Tiempo promedio por frame: 2404 µs
+Tiempo mínimo por frame: 2269 µs
+Tiempo máximo por frame: 2621 µs
+Tiempo promedio CRC por frame: 3 µs
+Tiempo promedio parsing por frame: 76 µs
+
+--- DATOS DEL LIDAR ---
+Rango de ángulos: 0.0° - 360.0°
+Ángulos únicos cubiertos: 3455
+Cobertura angular: 96.0%
+Distancia mínima: 24 mm
+Distancia máxima: 2034 mm
+Intensidad mínima: 8
+Intensidad máxima: 255
+Intensidad promedio: 222.5
+
+--- EFICIENCIA ---
+Tasa de éxito de frames: 99.98%
+CPU usado en CRC: 0.15%
+CPU usado en parsing: 3.19%
+CPU usado en UART: 82.88%
+============================================================
