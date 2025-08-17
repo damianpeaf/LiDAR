@@ -35,7 +35,7 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(picoscan picoscan.cpp ws.cpp lidar.cpp uart_utils.cpp tcp_client.cpp)
+add_executable(picoscan picoscan.cpp ws.cpp lidar.cpp uart_utils.cpp)
 
 pico_set_program_name(picoscan "picoscan")
 pico_set_program_version(picoscan "0.1")
