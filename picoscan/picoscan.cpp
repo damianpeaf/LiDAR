@@ -2,14 +2,19 @@
 #include <math.h>
 #include <vector>
 #include <cstdlib>
+#include <cstdio>
 
 #include "pico/stdlib.h"
 #include "pico/cyw43_arch.h"
+#include "hardware/uart.h"
+#include "hardware/gpio.h"
 
 #include "lwip/pbuf.h"
 #include "lwip/tcp.h"
 
 #include "ws.h"
+#include "lidar.hpp"
+#include "uart_utils.hpp"
 
 #define TEST_TCP_SERVER_IP "192.168.1.24"
 #define TCP_PORT 3000
@@ -22,16 +27,14 @@
 
 #define MAX_QUEUED_POINTS 5000
 
-typedef struct
-{
-    float angle;
-    uint16_t distance;
-    uint8_t intensity;
-} lidar_point_t;
+#define UART_ID uart1
+#define BAUD_RATE 230400
+#define UART_TX_PIN 8
+#define UART_RX_PIN 9
 
 typedef struct TCP_CLIENT_T_
 {
-    lidar_point_t points[MAX_QUEUED_POINTS];
+    LidarPoint points[MAX_QUEUED_POINTS];
     int points_count;
     struct tcp_pcb *tcp_pcb;
     ip_addr_t remote_addr;
@@ -178,8 +181,12 @@ static err_t connect(void *arg)
 
 int main()
 {
+    stdio_init_all();
 
-    stdio_usb_init();
+    uart_init(UART_ID, BAUD_RATE);
+    gpio_set_function(UART_TX_PIN, GPIO_FUNC_UART);
+    gpio_set_function(UART_RX_PIN, GPIO_FUNC_UART);
+    uart_set_format(UART_ID, 8, 1, UART_PARITY_NONE);
 
     char ssid[] = "CLARO1_8E2AAB";
     char pass[] = "841qlCREpc";
@@ -211,6 +218,10 @@ int main()
     static char payload_buffer[BUF_SIZE];
     const int BATCH_SIZE_TO_SEND = 100;
 
+    uint8_t frame[FRAME_SIZE];
+    LidarPoint points[POINT_PER_PACK];
+    uart_clear_buffer(UART_ID);
+
     while (true)
     {
         cyw43_arch_poll();
@@ -234,12 +245,29 @@ int main()
             state->rx_buffer_len = 0;
         }
 
-        if (state->points_count < MAX_QUEUED_POINTS)
+        uint8_t byte;
+        if (uart_read_byte_timeout(UART_ID, &byte, 1000) && byte == HEADER)
         {
-            state->points[state->points_count].angle = (float)(rand() % 3600) / 10.0f;
-            state->points[state->points_count].distance = rand() % 65535;
-            state->points[state->points_count].intensity = rand() % 256;
-            state->points_count++;
+            frame[0] = HEADER;
+            if (uart_read_bytes_timeout(UART_ID, &frame[1], FRAME_SIZE - 1, 100))
+            {
+                int num_points = parse_points(frame, points);
+                for (int i = 0; i < num_points; i++)
+                {
+                    if (points[i].distance <= 0 || points[i].distance > 12000 ||
+                        points[i].intensity < 0 || points[i].intensity > 255 ||
+                        points[i].angle < 0 || points[i].angle > 360)
+                    {
+                        continue;
+                    }
+
+                    if (state->points_count < MAX_QUEUED_POINTS)
+                    {
+                        state->points[state->points_count] = points[i];
+                        state->points_count++;
+                    }
+                }
+            }
         }
 
         if (state->points_count >= BATCH_SIZE_TO_SEND)
@@ -281,14 +309,12 @@ int main()
                     int remaining = state->points_count - points_in_payload;
                     if (remaining > 0)
                     {
-                        memmove(state->points, &state->points[points_in_payload], remaining * sizeof(lidar_point_t));
+                        memmove(state->points, &state->points[points_in_payload], remaining * sizeof(LidarPoint));
                     }
                     state->points_count = remaining;
                 }
             }
         }
-
-        sleep_us(200);
     }
 
     return 0;
