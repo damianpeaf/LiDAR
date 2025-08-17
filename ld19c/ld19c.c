@@ -1,11 +1,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#include <limits.h>
 #include "pico/stdlib.h"
 #include "hardware/uart.h"
 #include "hardware/gpio.h"
-#include "pico/time.h"
 
 // Configuración UART
 #define UART_ID uart1
@@ -17,10 +15,6 @@
 #define HEADER 0x54
 #define POINT_PER_PACK 12
 #define FRAME_SIZE 47
-
-// Configuración del reporte
-#define REPORT_INTERVAL_SECONDS 30
-#define MAX_ANGLE_BUCKETS 3600 // 0.1 grados de resolución
 
 // Tabla CRC
 static const uint8_t CRC_TABLE[256] = {
@@ -41,45 +35,6 @@ static const uint8_t CRC_TABLE[256] = {
     0x5d, 0x10, 0xc7, 0x8a, 0x24, 0x69, 0xbe, 0xf3, 0xaf, 0xe2, 0x35, 0x78, 0xd6, 0x9b, 0x4c, 0x01,
     0xf4, 0xb9, 0x6e, 0x23, 0x8d, 0xc0, 0x17, 0x5a, 0x06, 0x4b, 0x9c, 0xd1, 0x7f, 0x32, 0xe5, 0xa8};
 
-// Estructura para estadísticas de rendimiento
-typedef struct
-{
-    // Datos generales
-    uint64_t start_time_us;
-    uint32_t bytes_received;
-    uint32_t bytes_processed;
-    uint32_t frames_received;
-    uint32_t frames_processed;
-    uint32_t points_processed;
-
-    // Errores
-    uint32_t header_errors;
-    uint32_t size_errors;
-    uint32_t uart_timeouts;
-    uint32_t crc_errors;
-
-    // Tiempos de operación
-    uint64_t total_crc_time_us;
-    uint64_t total_parsing_time_us;
-    uint64_t total_uart_time_us;
-    uint64_t min_frame_time_us;
-    uint64_t max_frame_time_us;
-    uint64_t frame_times_sum_us;
-
-    // Datos del LIDAR
-    float min_angle;
-    float max_angle;
-    uint16_t min_distance;
-    uint16_t max_distance;
-    uint8_t min_intensity;
-    uint8_t max_intensity;
-    uint64_t intensity_sum;
-
-    // Cobertura angular
-    bool angle_covered[MAX_ANGLE_BUCKETS];
-
-} performance_stats_t;
-
 // Estructura para un punto LIDAR
 typedef struct
 {
@@ -88,8 +43,6 @@ typedef struct
     uint8_t intensity;
     bool valid;
 } lidar_point_t;
-
-static performance_stats_t stats = {0};
 
 // Función para calcular CRC8
 uint8_t calc_crc8(const uint8_t *data, size_t len)
@@ -102,72 +55,20 @@ uint8_t calc_crc8(const uint8_t *data, size_t len)
     return crc;
 }
 
-// Función para actualizar estadísticas de ángulo
-void update_angle_stats(float angle)
+// Función para normalizar ángulo
+float normalize_angle(float angle)
 {
-    // Actualizar min/max
-    if (stats.points_processed == 1 || angle < stats.min_angle)
-    {
-        stats.min_angle = angle;
-    }
-    if (stats.points_processed == 1 || angle > stats.max_angle)
-    {
-        stats.max_angle = angle;
-    }
-
-    // Marcar bucket de cobertura angular (resolución 0.1 grados)
-    int bucket = (int)(angle * 10.0f);
-    if (bucket >= 0 && bucket < MAX_ANGLE_BUCKETS)
-    {
-        stats.angle_covered[bucket] = true;
-    }
-}
-
-// Función para actualizar estadísticas de distancia
-void update_distance_stats(uint16_t distance)
-{
-    if (stats.points_processed == 1 || distance < stats.min_distance)
-    {
-        stats.min_distance = distance;
-    }
-    if (stats.points_processed == 1 || distance > stats.max_distance)
-    {
-        stats.max_distance = distance;
-    }
-}
-
-// Función para actualizar estadísticas de intensidad
-void update_intensity_stats(uint8_t intensity)
-{
-    if (stats.points_processed == 1 || intensity < stats.min_intensity)
-    {
-        stats.min_intensity = intensity;
-    }
-    if (stats.points_processed == 1 || intensity > stats.max_intensity)
-    {
-        stats.max_intensity = intensity;
-    }
-    stats.intensity_sum += intensity;
+    return fmodf(angle / 100.0f, 360.0f);
 }
 
 // Función para parsear los puntos del frame
 int parse_points(const uint8_t *frame, lidar_point_t *points)
 {
-    uint64_t crc_start = time_us_64();
-
     // Verificar CRC
-    bool crc_valid = (calc_crc8(frame, FRAME_SIZE - 1) == frame[FRAME_SIZE - 1]);
-
-    uint64_t crc_end = time_us_64();
-    stats.total_crc_time_us += (crc_end - crc_start);
-
-    if (!crc_valid)
+    if (calc_crc8(frame, FRAME_SIZE - 1) != frame[FRAME_SIZE - 1])
     {
-        stats.crc_errors++;
-        return 0;
+        return 0; // CRC inválido
     }
-
-    uint64_t parsing_start = time_us_64();
 
     // Extraer ángulos inicial y final (little endian)
     uint16_t start_angle_raw = (uint16_t)(frame[5] << 8) | frame[4];
@@ -190,7 +91,7 @@ int parse_points(const uint8_t *frame, lidar_point_t *points)
     // Procesar cada punto
     for (int i = 0; i < POINT_PER_PACK; i++)
     {
-        int offset = 6 + i * 3;
+        int offset = 6 + i * 3; // Los datos de puntos empiezan en el byte 6
 
         // Extraer distancia e intensidad (little endian)
         uint16_t distance = (uint16_t)(frame[offset + 1] << 8) | frame[offset];
@@ -202,23 +103,13 @@ int parse_points(const uint8_t *frame, lidar_point_t *points)
         // Solo agregar puntos válidos (distancia > 0)
         if (distance > 0)
         {
-            points[valid_points].angle = roundf(angle * 10.0f) / 10.0f;
+            points[valid_points].angle = roundf(angle * 10.0f) / 10.0f; // Redondear a 1 decimal
             points[valid_points].distance = distance;
             points[valid_points].intensity = intensity;
             points[valid_points].valid = true;
-
-            // Actualizar estadísticas
-            stats.points_processed++;
-            update_angle_stats(points[valid_points].angle);
-            update_distance_stats(distance);
-            update_intensity_stats(intensity);
-
             valid_points++;
         }
     }
-
-    uint64_t parsing_end = time_us_64();
-    stats.total_parsing_time_us += (parsing_end - parsing_start);
 
     return valid_points;
 }
@@ -226,40 +117,30 @@ int parse_points(const uint8_t *frame, lidar_point_t *points)
 // Función para leer un byte del UART con timeout
 bool uart_read_byte_timeout(uart_inst_t *uart, uint8_t *byte, uint32_t timeout_ms)
 {
-    uint64_t start_time = time_us_64();
-    uint64_t timeout_us = timeout_ms * 1000ULL;
+    uint32_t start_time = to_ms_since_boot(get_absolute_time());
 
-    while (time_us_64() - start_time < timeout_us)
+    while (to_ms_since_boot(get_absolute_time()) - start_time < timeout_ms)
     {
         if (uart_is_readable(uart))
         {
             *byte = uart_getc(uart);
             return true;
         }
-        sleep_us(100);
+        sleep_ms(1);
     }
-    stats.uart_timeouts++;
     return false;
 }
 
 // Función para leer múltiples bytes del UART con timeout
 bool uart_read_bytes_timeout(uart_inst_t *uart, uint8_t *buffer, size_t len, uint32_t timeout_ms)
 {
-    uint64_t start_time = time_us_64();
-
     for (size_t i = 0; i < len; i++)
     {
         if (!uart_read_byte_timeout(uart, &buffer[i], timeout_ms))
         {
-            stats.size_errors++;
             return false;
         }
     }
-
-    uint64_t end_time = time_us_64();
-    stats.total_uart_time_us += (end_time - start_time);
-    stats.bytes_received += len;
-
     return true;
 }
 
@@ -269,117 +150,7 @@ void uart_clear_buffer(uart_inst_t *uart)
     while (uart_is_readable(uart))
     {
         uart_getc(uart);
-        stats.bytes_received++;
     }
-}
-
-// Función para calcular cobertura angular
-float calculate_angular_coverage()
-{
-    int covered_buckets = 0;
-    for (int i = 0; i < MAX_ANGLE_BUCKETS; i++)
-    {
-        if (stats.angle_covered[i])
-        {
-            covered_buckets++;
-        }
-    }
-    return (float)covered_buckets / 3600.0f * 100.0f; // 360 grados = 3600 buckets de 0.1°
-}
-
-// Función para imprimir el reporte
-void print_performance_report()
-{
-    uint64_t total_time_us = time_us_64() - stats.start_time_us;
-    float total_time_s = total_time_us / 1000000.0f;
-
-    printf("\n");
-    printf("============================================================\n");
-    printf("REPORTE DE RENDIMIENTO - LIDAR PICO SDK C\n");
-    printf("============================================================\n");
-    printf("Tiempo de ejecución: %.2f segundos\n", total_time_s);
-    printf("Frecuencia de muestreo UART: %d baud\n", BAUD_RATE);
-    printf("\n");
-
-    printf("--- DATOS PROCESADOS ---\n");
-    printf("Bytes recibidos: %u\n", stats.bytes_received);
-    printf("Bytes procesados: %u\n", stats.bytes_processed);
-    printf("Frames recibidos: %u\n", stats.frames_received);
-    printf("Frames procesados exitosos: %u\n", stats.frames_processed);
-    printf("Puntos LIDAR procesados: %u\n", stats.points_processed);
-    printf("\n");
-
-    printf("--- TASAS DE PROCESAMIENTO ---\n");
-    if (total_time_s > 0)
-    {
-        printf("Bytes/s: %.0f\n", stats.bytes_received / total_time_s);
-        printf("Frames/s: %.1f\n", stats.frames_processed / total_time_s);
-        printf("Puntos/s: %.0f\n", stats.points_processed / total_time_s);
-    }
-    printf("\n");
-
-    printf("--- ERRORES ---\n");
-    printf("Errores de header: %u\n", stats.header_errors);
-    printf("Errores de tamaño: %u\n", stats.size_errors);
-    printf("Timeouts UART: %u\n", stats.uart_timeouts);
-    if (stats.frames_received > 0)
-    {
-        float error_rate = ((float)(stats.frames_received - stats.frames_processed) / stats.frames_received) * 100.0f;
-        printf("Tasa de error: %.2f%%\n", error_rate);
-    }
-    printf("\n");
-
-    printf("--- TIEMPOS DE OPERACIÓN (microsegundos) ---\n");
-    printf("Tiempo total en cálculo CRC: %llu\n", stats.total_crc_time_us);
-    printf("Tiempo total en parsing: %llu\n", stats.total_parsing_time_us);
-    printf("Tiempo total en lectura UART: %llu\n", stats.total_uart_time_us);
-    if (stats.frames_processed > 0)
-    {
-        printf("Tiempo promedio por frame: %llu µs\n", stats.frame_times_sum_us / stats.frames_processed);
-        printf("Tiempo mínimo por frame: %llu µs\n", stats.min_frame_time_us);
-        printf("Tiempo máximo por frame: %llu µs\n", stats.max_frame_time_us);
-        printf("Tiempo promedio CRC por frame: %llu µs\n", stats.total_crc_time_us / stats.frames_processed);
-        printf("Tiempo promedio parsing por frame: %llu µs\n", stats.total_parsing_time_us / stats.frames_processed);
-    }
-    printf("\n");
-
-    printf("--- DATOS DEL LIDAR ---\n");
-    if (stats.points_processed > 0)
-    {
-        printf("Rango de ángulos: %.1f° - %.1f°\n", stats.min_angle, stats.max_angle);
-
-        // Calcular ángulos únicos cubiertos
-        int unique_angles = 0;
-        for (int i = 0; i < MAX_ANGLE_BUCKETS; i++)
-        {
-            if (stats.angle_covered[i])
-                unique_angles++;
-        }
-        printf("Ángulos únicos cubiertos: %d\n", unique_angles);
-        printf("Cobertura angular: %.1f%%\n", calculate_angular_coverage());
-
-        printf("Distancia mínima: %u mm\n", stats.min_distance);
-        printf("Distancia máxima: %u mm\n", stats.max_distance);
-        printf("Intensidad mínima: %u\n", stats.min_intensity);
-        printf("Intensidad máxima: %u\n", stats.max_intensity);
-        printf("Intensidad promedio: %.1f\n", (float)stats.intensity_sum / stats.points_processed);
-    }
-    printf("\n");
-
-    printf("--- EFICIENCIA ---\n");
-    if (stats.frames_received > 0)
-    {
-        float success_rate = ((float)stats.frames_processed / stats.frames_received) * 100.0f;
-        printf("Tasa de éxito de frames: %.2f%%\n", success_rate);
-    }
-    if (total_time_us > 0)
-    {
-        printf("CPU usado en CRC: %.2f%%\n", ((float)stats.total_crc_time_us / total_time_us) * 100.0f);
-        printf("CPU usado en parsing: %.2f%%\n", ((float)stats.total_parsing_time_us / total_time_us) * 100.0f);
-        printf("CPU usado en UART: %.2f%%\n", ((float)stats.total_uart_time_us / total_time_us) * 100.0f);
-    }
-    printf("============================================================\n");
-    printf("\n");
 }
 
 int main()
@@ -397,14 +168,8 @@ int main()
     // Configurar formato UART (8 bits de datos, 1 bit de parada, sin paridad)
     uart_set_format(UART_ID, 8, 1, UART_PARITY_NONE);
 
-    printf("LIDAR Reader con reporte de rendimiento iniciado\n");
+    printf("LIDAR Reader iniciado\n");
     printf("UART configurado: %d baud, TX pin %d, RX pin %d\n", BAUD_RATE, UART_TX_PIN, UART_RX_PIN);
-    printf("Reporte se generará cada %d segundos\n\n", REPORT_INTERVAL_SECONDS);
-
-    // Inicializar estadísticas
-    memset(&stats, 0, sizeof(stats));
-    stats.start_time_us = time_us_64();
-    stats.min_frame_time_us = UINT64_MAX;
 
     uint8_t frame[FRAME_SIZE];
     lidar_point_t points[POINT_PER_PACK];
@@ -414,12 +179,9 @@ int main()
 
     while (true)
     {
-        uint64_t frame_start_time = time_us_64();
-
         uint8_t byte;
 
         // Buscar el header
-        uint64_t uart_start = time_us_64();
         if (!uart_read_byte_timeout(UART_ID, &byte, 1000))
         {
             continue;
@@ -427,65 +189,32 @@ int main()
 
         if (byte != HEADER)
         {
-            stats.header_errors++;
             continue;
         }
-
-        stats.bytes_received++; // Contar el header
 
         // Leer el resto del frame
         frame[0] = HEADER;
         if (!uart_read_bytes_timeout(UART_ID, &frame[1], FRAME_SIZE - 1, 100))
         {
+            printf("Timeout leyendo frame\n");
             continue;
         }
-
-        stats.frames_received++;
-        stats.bytes_processed += FRAME_SIZE;
 
         // Parsear los puntos
         int num_points = parse_points(frame, points);
 
         if (num_points > 0)
         {
-            stats.frames_processed++;
-
-            // Calcular tiempo del frame
-            uint64_t frame_end_time = time_us_64();
-            uint64_t frame_time = frame_end_time - frame_start_time;
-
-            stats.frame_times_sum_us += frame_time;
-            if (frame_time < stats.min_frame_time_us)
+            // Imprimir todos los puntos válidos
+            for (int i = 0; i < num_points; i++)
             {
-                stats.min_frame_time_us = frame_time;
-            }
-            if (frame_time > stats.max_frame_time_us)
-            {
-                stats.max_frame_time_us = frame_time;
-            }
-
-            // Imprimir algunos puntos para verificación (opcional)
-            if (stats.frames_processed <= 3)
-            {
-                for (int i = 0; i < num_points && i < 3; i++)
-                {
-                    printf("Ángulo: %.1f°  Distancia: %d mm  Intensidad: %d\n",
-                           points[i].angle, points[i].distance, points[i].intensity);
-                }
+                printf("Ángulo: %.1f°  Distancia: %d mm  Intensidad: %d\n",
+                       points[i].angle, points[i].distance, points[i].intensity);
             }
         }
 
-        // Generar reporte cada REPORT_INTERVAL_SECONDS segundos
-        uint64_t current_time = time_us_64();
-        if (current_time - stats.start_time_us >= REPORT_INTERVAL_SECONDS * 1000000ULL)
-        {
-            print_performance_report();
-
-            // Reiniciar estadísticas para el siguiente intervalo
-            memset(&stats, 0, sizeof(stats));
-            stats.start_time_us = current_time;
-            stats.min_frame_time_us = UINT64_MAX;
-        }
+        // Pequeña pausa para no saturar la salida
+        sleep_ms(1);
     }
 
     return 0;
