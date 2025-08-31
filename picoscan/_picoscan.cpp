@@ -8,8 +8,6 @@
 #include "pico/cyw43_arch.h"
 #include "hardware/uart.h"
 #include "hardware/gpio.h"
-#include "hardware/pwm.h"
-#include "hardware/clocks.h"
 
 #include "lwip/pbuf.h"
 #include "lwip/tcp.h"
@@ -34,19 +32,9 @@
 #define UART_TX_PIN 8
 #define UART_RX_PIN 9
 
-#define SERVO_PIN 15
-
-typedef struct
-{
-    float angle;
-    uint distance;
-    uint intensity;
-    float servo_angle;
-} LidarPointWithServo;
-
 typedef struct TCP_CLIENT_T_
 {
-    LidarPointWithServo points[MAX_QUEUED_POINTS];
+    LidarPoint points[MAX_QUEUED_POINTS];
     int points_count;
     struct tcp_pcb *tcp_pcb;
     ip_addr_t remote_addr;
@@ -58,61 +46,10 @@ typedef struct TCP_CLIENT_T_
     int connected;
 } TCP_CLIENT_T;
 
-uint slice_num;
-uint16_t wrap_value;
-uint current_servo_pulse = 1500;
-int servo_direction = 1;
-absolute_time_t last_servo_update;
-
-void servo_init(uint gpio_pin)
-{
-    gpio_set_function(gpio_pin, GPIO_FUNC_PWM);
-    slice_num = pwm_gpio_to_slice_num(gpio_pin);
-
-    float clock_div = 40.0f;
-    pwm_set_clkdiv(slice_num, clock_div);
-    wrap_value = 62500 - 1;
-    pwm_set_wrap(slice_num, wrap_value);
-    pwm_set_enabled(slice_num, true);
-}
-
-float pulse_to_degrees(uint pulse_us)
-{
-    return (float)(pulse_us - 500) * 180.0f / 2000.0f;
-}
-
-void servo_set_pulse_us(uint gpio_pin, uint pulse_us)
-{
-    uint16_t level = (pulse_us * wrap_value) / 20000;
-    pwm_set_gpio_level(gpio_pin, level);
-}
-
-void update_servo()
-{
-    absolute_time_t now = get_absolute_time();
-    if (absolute_time_diff_us(last_servo_update, now) >= 25000)
-    {
-        current_servo_pulse += servo_direction * 10;
-
-        if (current_servo_pulse >= 2500)
-        {
-            current_servo_pulse = 2500;
-            servo_direction = -1;
-        }
-        else if (current_servo_pulse <= 500)
-        {
-            current_servo_pulse = 500;
-            servo_direction = 1;
-        }
-
-        servo_set_pulse_us(SERVO_PIN, current_servo_pulse);
-        last_servo_update = now;
-    }
-}
-
 static err_t tcp_client_sent(void *arg, struct tcp_pcb *tpcb, u16_t len)
 {
     TCP_CLIENT_T *state = (TCP_CLIENT_T *)arg;
+    printf("tcp_client_sent %u\n", len);
     return ERR_OK;
 }
 
@@ -135,6 +72,7 @@ static err_t tcp_client_connected(void *arg, struct tcp_pcb *tpcb, err_t err)
 
 static err_t tcp_client_poll(void *arg, struct tcp_pcb *tpcb)
 {
+    printf("tcp_client_poll\n");
     return ERR_OK;
 }
 
@@ -145,6 +83,10 @@ static void tcp_client_err(void *arg, err_t err)
     if (err != ERR_ABRT)
     {
         printf("tcp_client_err %d\n", err);
+    }
+    else
+    {
+        printf("tcp_client_err abort %d\n", err);
     }
 }
 
@@ -162,6 +104,7 @@ static err_t tcp_client_close(void *arg)
         err = tcp_close(state->tcp_pcb);
         if (err != ERR_OK)
         {
+            printf("close failed %d, calling abort\n", err);
             tcp_abort(state->tcp_pcb);
             err = ERR_ABRT;
         }
@@ -173,6 +116,7 @@ static err_t tcp_client_close(void *arg)
 
 err_t tcp_client_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err)
 {
+    printf("recv \r\n");
     TCP_CLIENT_T *state = (TCP_CLIENT_T *)arg;
     if (!p)
     {
@@ -199,6 +143,7 @@ err_t tcp_client_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
                 state->rx_buffer_len += header.length;
             }
         }
+        printf("tcp_recved \r\n");
         tcp_recved(tpcb, p->tot_len);
     }
     pbuf_free(p);
@@ -243,10 +188,6 @@ int main()
     gpio_set_function(UART_RX_PIN, GPIO_FUNC_UART);
     uart_set_format(UART_ID, 8, 1, UART_PARITY_NONE);
 
-    servo_init(SERVO_PIN);
-    servo_set_pulse_us(SERVO_PIN, current_servo_pulse);
-    last_servo_update = get_absolute_time();
-
     char ssid[] = "CLARO1_8E2AAB";
     char pass[] = "841qlCREpc";
 
@@ -284,7 +225,6 @@ int main()
     while (true)
     {
         cyw43_arch_poll();
-        update_servo();
 
         if (state->connected == TCP_DISCONNECTED)
         {
@@ -301,6 +241,7 @@ int main()
 
         if (state->rx_buffer_len)
         {
+            printf("%.*s \r\n", state->rx_buffer_len, (char *)state->rx_buffer);
             state->rx_buffer_len = 0;
         }
 
@@ -311,8 +252,6 @@ int main()
             if (uart_read_bytes_timeout(UART_ID, &frame[1], FRAME_SIZE - 1, 100))
             {
                 int num_points = parse_points(frame, points);
-                float current_servo_angle = pulse_to_degrees(current_servo_pulse);
-
                 for (int i = 0; i < num_points; i++)
                 {
                     if (points[i].distance <= 0 || points[i].distance > 12000 ||
@@ -324,10 +263,7 @@ int main()
 
                     if (state->points_count < MAX_QUEUED_POINTS)
                     {
-                        state->points[state->points_count].angle = points[i].angle;
-                        state->points[state->points_count].distance = points[i].distance;
-                        state->points[state->points_count].intensity = points[i].intensity;
-                        state->points[state->points_count].servo_angle = current_servo_angle;
+                        state->points[state->points_count] = points[i];
                         state->points_count++;
                     }
                 }
@@ -338,22 +274,11 @@ int main()
         {
             int payload_len = 0;
             int points_in_payload = 0;
-            float last_servo_angle = -1.0f;
 
             for (int i = 0; i < state->points_count; i++)
             {
-                if (state->points[i].servo_angle != last_servo_angle)
-                {
-                    int header_len = snprintf(payload_buffer + payload_len, BUF_SIZE - payload_len, "%.1f|",
-                                              state->points[i].servo_angle);
-                    if (payload_len + header_len >= BUF_SIZE)
-                        break;
-                    payload_len += header_len;
-                    last_servo_angle = state->points[i].servo_angle;
-                }
-
-                int len = snprintf(payload_buffer + payload_len, BUF_SIZE - payload_len, "%u;%u;%.1f;",
-                                   state->points[i].distance, state->points[i].intensity, state->points[i].angle);
+                int len = snprintf(payload_buffer + payload_len, BUF_SIZE - payload_len, "%.1f;%u;%u;",
+                                   state->points[i].angle, state->points[i].distance, state->points[i].intensity);
 
                 if (payload_len + len >= BUF_SIZE)
                 {
@@ -373,6 +298,10 @@ int main()
                 {
                     tcp_output(state->tcp_pcb);
                 }
+                else if (err != ERR_MEM)
+                {
+                    printf("Failed to write data %d\n", err);
+                }
                 cyw43_arch_lwip_end();
 
                 if (err == ERR_OK)
@@ -380,7 +309,7 @@ int main()
                     int remaining = state->points_count - points_in_payload;
                     if (remaining > 0)
                     {
-                        memmove(state->points, &state->points[points_in_payload], remaining * sizeof(LidarPointWithServo));
+                        memmove(state->points, &state->points[points_in_payload], remaining * sizeof(LidarPoint));
                     }
                     state->points_count = remaining;
                 }

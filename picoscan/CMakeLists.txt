@@ -48,6 +48,7 @@ pico_enable_stdio_usb(picoscan 1)
 target_link_libraries(picoscan
         pico_stdlib
         hardware_uart
+        hardware_pwm
         hardware_gpio
         pico_cyw43_arch_lwip_threadsafe_background)
 
