@@ -7,13 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import LidarVisualization from '@/components/lidar-visualization';
 
 interface Point {
-  i: number; // intensity
-  a: number; // angle
-  d: number; // distance
-}
-
-interface SensorData {
-  points: Point[];
+  intensity: number;
+  x: number;
+  y: number;
+  z: number;
 }
 
 export default function Home() {
@@ -24,7 +21,6 @@ export default function Home() {
   >('disconnected');
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
-  const pointsMapRef = useRef<Map<number, Point>>(new Map());
 
   const connectWebSocket = () => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -45,16 +41,17 @@ export default function Home() {
 
       ws.onmessage = (event) => {
         try {
-          const data: SensorData = JSON.parse(event.data);
-          console.log('Datos recibidos:', data);
+          const rawData = JSON.parse(event.data);
+          console.log('Datos recibidos:', rawData);
 
-          if (data.points && Array.isArray(data.points)) {
-            data.points.forEach((newPoint) => {
-              pointsMapRef.current.set(newPoint.a, newPoint);
-            });
-
-            const allPoints = Array.from(pointsMapRef.current.values());
-            setPoints(allPoints);
+          if (Array.isArray(rawData)) {
+            const newPoints: Point[] = rawData.map((p: any) => ({
+              intensity: p.intensity,
+              x: p.x,
+              y: p.y,
+              z: p.z,
+            }));
+            setPoints((prevPoints) => [...prevPoints, ...newPoints]);
             setLastUpdate(new Date());
           }
         } catch (error) {
@@ -90,7 +87,6 @@ export default function Home() {
     setIsConnected(false);
     setConnectionStatus('disconnected');
     setPoints([]);
-    pointsMapRef.current.clear();
   };
 
   useEffect(() => {
@@ -131,7 +127,7 @@ export default function Home() {
     <div className='min-h-screen bg-background p-4'>
       <div className='max-w-7xl mx-auto space-y-6'>
         <div className='flex items-center justify-between'>
-          <h1 className='text-3xl font-bold'>Visualizador LIDAR</h1>
+          <h1 className='text-3xl font-bold'>Visualizador LIDAR 2</h1>
           <div className='flex items-center gap-4'>
             <Badge className={getStatusColor()}>{getStatusText()}</Badge>
             {!isConnected ? (
@@ -195,8 +191,11 @@ export default function Home() {
                       </p>
                       <p className='text-lg font-semibold'>
                         {(
-                          points.reduce((sum, p) => sum + p.d, 0) /
-                          points.length
+                          points.reduce(
+                            (sum, p) =>
+                              sum + Math.sqrt(p.x ** 2 + p.y ** 2 + p.z ** 2),
+                            0
+                          ) / points.length
                         ).toFixed(1)}{' '}
                         cm
                       </p>
@@ -208,7 +207,7 @@ export default function Home() {
                       </p>
                       <p className='text-lg font-semibold'>
                         {(
-                          points.reduce((sum, p) => sum + p.i, 0) /
+                          points.reduce((sum, p) => sum + p.intensity, 0) /
                           points.length
                         ).toFixed(0)}
                       </p>
