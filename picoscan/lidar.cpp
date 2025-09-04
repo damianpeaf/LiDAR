@@ -1,3 +1,4 @@
+#include <cstdio>
 #include "lidar.hpp"
 
 // Tabla CRC (igual que en C)
@@ -34,6 +35,7 @@ int parse_points(const uint8_t *frame, LidarPoint *points)
     // Verificar CRC
     if (calc_crc8(frame, FRAME_SIZE - 1) != frame[FRAME_SIZE - 1])
     {
+        printf("CRC check failed\n");
         return 0;
     }
 
