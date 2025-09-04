@@ -5,6 +5,7 @@ import websockets
 import redis.asyncio as redis
 import json
 import uuid
+import time
 from datetime import datetime
 
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
@@ -12,6 +13,10 @@ REDIS_KEY = "lidar_points"
 
 web_clients = set()
 redis_client = None
+
+# Variables para calcular puntos por segundo
+total_points_processed = 0
+start_time = None
 
 async def init_redis():
     global redis_client
@@ -223,6 +228,12 @@ async def server(ws):
                     sensor_points = parse_sensor_data(message)
                     
                     if sensor_points:
+                        global total_points_processed, start_time
+                        
+                        # Inicializar tiempo si es la primera vez
+                        if start_time is None:
+                            start_time = time.time()
+                        
                         print(f"Puntos parseados: {len(sensor_points)}")
                         
                         processed_points = []
@@ -245,7 +256,16 @@ async def server(ws):
                             
                             processed_points.append(processed_point)
                         
+                        # Actualizar contadores
+                        total_points_processed += len(processed_points)
+                        current_time = time.time()
+                        elapsed_time = current_time - start_time
+                        
+                        # Calcular promedio de puntos por segundo
+                        points_per_second = total_points_processed / elapsed_time if elapsed_time > 0 else 0
+                        
                         print(f"Puntos procesados: {len(processed_points)}")
+                        print(f"Media puntos/s: {points_per_second:.2f}")
 
                         # Almacenar en Redis
                         await store_points_in_redis(processed_points)
