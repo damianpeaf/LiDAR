@@ -36,6 +36,13 @@
 
 #define SERVO_PIN 15
 
+// Configuración del servo para alta precisión
+#define SERVO_MIN_PULSE 500  // Mínimo pulso en microsegundos
+#define SERVO_MAX_PULSE 2500 // Máximo pulso en microsegundos
+#define SERVO_STEP_SIZE 5    // Paso mínimo en microsegundos (alta resolución)
+#define SAMPLES_PER_POSITION 2
+#define MIN_POINTS_PER_SAMPLE 5000 // Mínimo de puntos por muestra para considerar una vuelta completa
+
 typedef struct
 {
     float angle;
@@ -60,9 +67,12 @@ typedef struct TCP_CLIENT_T_
 
 uint slice_num;
 uint16_t wrap_value;
-uint current_servo_pulse = 1500;
+uint current_servo_pulse = SERVO_MIN_PULSE;
 int servo_direction = 1;
-absolute_time_t last_servo_update;
+int samples_collected_at_position = 0;
+int points_in_current_sample = 0;
+float last_lidar_angle = -1.0f;
+bool waiting_for_complete_rotation = false;
 
 void servo_init(uint gpio_pin)
 {
@@ -78,7 +88,7 @@ void servo_init(uint gpio_pin)
 
 float pulse_to_degrees(uint pulse_us)
 {
-    return (float)(pulse_us - 500) * 180.0f / 2000.0f;
+    return (float)(pulse_us - SERVO_MIN_PULSE) * 180.0f / (SERVO_MAX_PULSE - SERVO_MIN_PULSE);
 }
 
 void servo_set_pulse_us(uint gpio_pin, uint pulse_us)
@@ -87,27 +97,75 @@ void servo_set_pulse_us(uint gpio_pin, uint pulse_us)
     pwm_set_gpio_level(gpio_pin, level);
 }
 
-void update_servo()
+// Nueva función para mover el servo al siguiente paso
+void move_servo_to_next_position()
 {
-    absolute_time_t now = get_absolute_time();
-    if (absolute_time_diff_us(last_servo_update, now) >= 25000)
+    current_servo_pulse += servo_direction * SERVO_STEP_SIZE;
+
+    // Cambiar dirección al llegar a los extremos
+    if (current_servo_pulse >= SERVO_MAX_PULSE)
     {
-        current_servo_pulse += servo_direction * 10;
-
-        if (current_servo_pulse >= 2500)
-        {
-            current_servo_pulse = 2500;
-            servo_direction = -1;
-        }
-        else if (current_servo_pulse <= 500)
-        {
-            current_servo_pulse = 500;
-            servo_direction = 1;
-        }
-
-        servo_set_pulse_us(SERVO_PIN, current_servo_pulse);
-        last_servo_update = now;
+        current_servo_pulse = SERVO_MAX_PULSE;
+        servo_direction = -1;
     }
+    else if (current_servo_pulse <= SERVO_MIN_PULSE)
+    {
+        current_servo_pulse = SERVO_MIN_PULSE;
+        servo_direction = 1;
+    }
+
+    servo_set_pulse_us(SERVO_PIN, current_servo_pulse);
+
+    // Reset contadores para la nueva posición
+    samples_collected_at_position = 0;
+    points_in_current_sample = 0;
+    last_lidar_angle = -1.0f;
+    waiting_for_complete_rotation = false;
+
+    printf("Servo moved to pulse %d (%.1f degrees), collecting samples...\n",
+           current_servo_pulse, pulse_to_degrees(current_servo_pulse));
+}
+
+// Función para verificar si hemos completado una vuelta completa del LiDAR
+bool check_complete_lidar_rotation(float current_angle)
+{
+    if (!waiting_for_complete_rotation)
+    {
+        // Comenzar a esperar una rotación completa
+        waiting_for_complete_rotation = true;
+        last_lidar_angle = current_angle;
+        points_in_current_sample = 1;
+        return false;
+    }
+
+    points_in_current_sample++;
+
+    // Verificar si hemos dado una vuelta completa (el ángulo ha regresado cerca del inicial)
+    if (points_in_current_sample >= MIN_POINTS_PER_SAMPLE)
+    {
+        float angle_diff = fabs(current_angle - last_lidar_angle);
+        // Considerar tanto diferencia pequeña como cruce por 0/360
+        if (angle_diff < 10.0f || angle_diff > 350.0f)
+        {
+            samples_collected_at_position++;
+            points_in_current_sample = 0;
+            waiting_for_complete_rotation = false;
+
+            printf("Sample %d completed at servo angle %.1f degrees (%d points)\n",
+                   samples_collected_at_position, pulse_to_degrees(current_servo_pulse),
+                   points_in_current_sample);
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// Función para verificar si debemos mover el servo
+bool should_move_servo()
+{
+    return samples_collected_at_position >= SAMPLES_PER_POSITION;
 }
 
 static err_t tcp_client_sent(void *arg, struct tcp_pcb *tpcb, u16_t len)
@@ -245,7 +303,14 @@ int main()
 
     servo_init(SERVO_PIN);
     servo_set_pulse_us(SERVO_PIN, current_servo_pulse);
-    last_servo_update = get_absolute_time();
+
+    // Inicializar estado del servo
+    samples_collected_at_position = 0;
+    points_in_current_sample = 0;
+    last_lidar_angle = -1.0f;
+    waiting_for_complete_rotation = false;
+
+    printf("Starting precise LiDAR scan. Servo at %.1f degrees\n", pulse_to_degrees(current_servo_pulse));
 
     char ssid[] = "CLARO1_8E2AAB";
     char pass[] = "841qlCREpc";
@@ -284,7 +349,6 @@ int main()
     while (true)
     {
         cyw43_arch_poll();
-        update_servo();
 
         if (state->connected == TCP_DISCONNECTED)
         {
@@ -322,6 +386,13 @@ int main()
                         continue;
                     }
 
+                    // Verificar rotación completa del LiDAR
+                    if (check_complete_lidar_rotation(points[i].angle))
+                    {
+                        printf("Completed sample %d/%d at servo angle %.1f\n",
+                               samples_collected_at_position, SAMPLES_PER_POSITION, current_servo_angle);
+                    }
+
                     if (state->points_count < MAX_QUEUED_POINTS)
                     {
                         state->points[state->points_count].angle = points[i].angle;
@@ -331,9 +402,18 @@ int main()
                         state->points_count++;
                     }
                 }
+
+                // Verificar si debemos mover el servo
+                if (should_move_servo())
+                {
+                    printf("Position complete! Moving servo to next position...\n");
+                    move_servo_to_next_position();
+                    sleep_ms(200); // Tiempo para estabilizar el servo
+                }
             }
         }
 
+        // Enviar datos cuando tengamos suficientes puntos
         if (state->points_count >= BATCH_SIZE_TO_SEND)
         {
             int payload_len = 0;

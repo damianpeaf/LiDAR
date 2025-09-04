@@ -7,6 +7,9 @@ interface InfoProps {
   lastUpdate: Date | null;
   connect: () => void;
   disconnect: () => void;
+  exportData: () => void;
+  importData: (file: File) => void;
+  clearScan: () => void;
 }
 
 export const Info = ({
@@ -16,6 +19,9 @@ export const Info = ({
   lastUpdate,
   connect,
   disconnect,
+  exportData,
+  importData,
+  clearScan,
 }: InfoProps) => {
   return (
     <div
@@ -75,6 +81,50 @@ export const Info = ({
         >
           Disconnect
         </button>
+      </div>
+      <div style={{ marginTop: '10px' }}>
+        <button
+          onClick={clearScan}
+          style={{
+            padding: '6px 12px',
+            borderRadius: '4px',
+            border: 'none',
+            cursor: 'pointer',
+            backgroundColor: '#ffc107',
+            color: 'white',
+          }}
+        >
+          Limpiar escaneo
+        </button>
+      </div>
+      <div style={{ marginTop: '10px', display: 'flex', gap: '8px' }}>
+        <button
+          onClick={exportData}
+          style={{
+            padding: '6px 12px',
+            borderRadius: '4px',
+            border: 'none',
+            cursor: 'pointer',
+            backgroundColor: '#007bff',
+            color: 'white',
+          }}
+        >
+          Exportar JSON
+        </button>
+      </div>
+      <div style={{ marginTop: '10px', display: 'flex', gap: '8px' }}>
+        <input
+          style={{
+            marginTop: '10px',
+          }}
+          type='file'
+          accept='application/json'
+          onChange={(e) => {
+            if (e.target.files && e.target.files[0]) {
+              importData(e.target.files[0]);
+            }
+          }}
+        />
       </div>
     </div>
   );

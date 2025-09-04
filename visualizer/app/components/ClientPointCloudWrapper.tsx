@@ -18,6 +18,9 @@ export default function ClientPointCloudWrapper() {
     lastUpdate,
     connect,
     disconnect,
+    exportData,
+    importData,
+    clearScan,
   } = useLidar();
 
   return (
@@ -29,6 +32,9 @@ export default function ClientPointCloudWrapper() {
         lastUpdate={lastUpdate}
         connect={connect}
         disconnect={disconnect}
+        exportData={exportData}
+        importData={importData}
+        clearScan={clearScan}
       />
 
       <PointCloud points={points} />

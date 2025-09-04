@@ -135,24 +135,44 @@ function AdvancedPointCloud({
 }) {
   const pointsRef = useRef<THREE.Points>(null);
 
-  // Calcular posiciones y metadatos
+  // Calcular posiciones y metadatos de forma optimizada
   const { positions, colors, bounds } = useMemo(() => {
     if (points.length === 0)
       return { positions: null, colors: null, bounds: null };
 
-    const posArray = new Float32Array(points.length * 3);
-    const colorArray = new Float32Array(points.length * 3);
+    // Calcular bounds en una sola pasada - MUY IMPORTANTE para arrays grandes
+    let minX = Infinity,
+      maxX = -Infinity;
+    let minY = Infinity,
+      maxY = -Infinity;
+    let minZ = Infinity,
+      maxZ = -Infinity;
+    let minIntensity = Infinity,
+      maxIntensity = -Infinity;
 
-    // Calcular bounds para normalización
+    // Una sola iteración para encontrar todos los bounds
+    for (let i = 0; i < points.length; i++) {
+      const point = points[i];
+
+      if (point.x < minX) minX = point.x;
+      if (point.x > maxX) maxX = point.x;
+      if (point.y < minY) minY = point.y;
+      if (point.y > maxY) maxY = point.y;
+      if (point.z < minZ) minZ = point.z;
+      if (point.z > maxZ) maxZ = point.z;
+      if (point.intensity < minIntensity) minIntensity = point.intensity;
+      if (point.intensity > maxIntensity) maxIntensity = point.intensity;
+    }
+
     const bounds = {
-      minX: Math.min(...points.map((p) => p.x)),
-      maxX: Math.max(...points.map((p) => p.x)),
-      minY: Math.min(...points.map((p) => p.y)),
-      maxY: Math.max(...points.map((p) => p.y)),
-      minZ: Math.min(...points.map((p) => p.z)),
-      maxZ: Math.max(...points.map((p) => p.z)),
-      minIntensity: Math.min(...points.map((p) => p.intensity)),
-      maxIntensity: Math.max(...points.map((p) => p.intensity)),
+      minX,
+      maxX,
+      minY,
+      maxY,
+      minZ,
+      maxZ,
+      minIntensity,
+      maxIntensity,
     };
 
     const center = new THREE.Vector3(
@@ -161,27 +181,54 @@ function AdvancedPointCloud({
       (bounds.minZ + bounds.maxZ) / 2
     );
 
-    points.forEach((point, i) => {
-      // Posiciones centradas
-      posArray[i * 3] = point.x - center.x;
-      posArray[i * 3 + 1] = point.y - center.y;
-      posArray[i * 3 + 2] = point.z - center.z;
+    // Pre-calcular valores para optimizar el bucle principal
+    const rangeX = bounds.maxX - bounds.minX || 1;
+    const rangeY = bounds.maxY - bounds.minY || 1;
+    const rangeZ = bounds.maxZ - bounds.minZ || 1;
+    const rangeIntensity = bounds.maxIntensity - bounds.minIntensity || 1;
 
-      // Colores según modo de renderizado
-      const color = new THREE.Color();
+    // Calcular distancia máxima una sola vez
+    const maxDistance = Math.sqrt(
+      (rangeX / 2) ** 2 + (rangeY / 2) ** 2 + (rangeZ / 2) ** 2
+    );
+
+    // Crear arrays de buffer
+    const posArray = new Float32Array(points.length * 3);
+    const colorArray = new Float32Array(points.length * 3);
+
+    // Una sola iteración para posiciones y colores
+    for (let i = 0; i < points.length; i++) {
+      const point = points[i];
+      const idx3 = i * 3;
+
+      // Posiciones centradas
+      posArray[idx3] = point.x - center.x;
+      posArray[idx3 + 1] = point.y - center.y;
+      posArray[idx3 + 2] = point.z - center.z;
+
+      // Calcular color según modo de renderizado
+      let r, g, b;
 
       switch (renderMode) {
         case 'intensity': {
           const intensity =
-            (point.intensity - bounds.minIntensity) /
-            (bounds.maxIntensity - bounds.minIntensity || 1);
-          color.setHSL(0.15 + intensity * 0.5, 1, 0.5 + intensity * 0.3);
+            (point.intensity - bounds.minIntensity) / rangeIntensity;
+          const hue = 0.15 + intensity * 0.5;
+          const lightness = 0.5 + intensity * 0.3;
+          // Convertir HSL a RGB de forma optimizada
+          const color = new THREE.Color().setHSL(hue, 1, lightness);
+          r = color.r;
+          g = color.g;
+          b = color.b;
           break;
         }
         case 'height': {
-          const height =
-            (point.z - bounds.minZ) / (bounds.maxZ - bounds.minZ || 1);
-          color.setHSL(0.7 - height * 0.7, 1, 0.5);
+          const height = (point.z - bounds.minZ) / rangeZ;
+          const hue = 0.7 - height * 0.7;
+          const color = new THREE.Color().setHSL(hue, 1, 0.5);
+          r = color.r;
+          g = color.g;
+          b = color.b;
           break;
         }
         case 'distance': {
@@ -190,28 +237,32 @@ function AdvancedPointCloud({
               (point.y - center.y) ** 2 +
               (point.z - center.z) ** 2
           );
-          const maxDistance = Math.sqrt(
-            ((bounds.maxX - bounds.minX) / 2) ** 2 +
-              ((bounds.maxY - bounds.minY) / 2) ** 2 +
-              ((bounds.maxZ - bounds.minZ) / 2) ** 2
-          );
           const normalizedDistance = distance / maxDistance;
-          color.setHSL(0.8 - normalizedDistance * 0.6, 1, 0.6);
+          const hue = 0.8 - normalizedDistance * 0.6;
+          const color = new THREE.Color().setHSL(hue, 1, 0.6);
+          r = color.r;
+          g = color.g;
+          b = color.b;
           break;
         }
         case 'rainbow': {
           const angle =
             Math.atan2(point.y - center.y, point.x - center.x) + Math.PI;
           const hue = (angle / (2 * Math.PI)) % 1;
-          color.setHSL(hue, 1, 0.6);
+          const color = new THREE.Color().setHSL(hue, 1, 0.6);
+          r = color.r;
+          g = color.g;
+          b = color.b;
           break;
         }
+        default:
+          r = g = b = 1;
       }
 
-      colorArray[i * 3] = color.r;
-      colorArray[i * 3 + 1] = color.g;
-      colorArray[i * 3 + 2] = color.b;
-    });
+      colorArray[idx3] = r;
+      colorArray[idx3 + 1] = g;
+      colorArray[idx3 + 2] = b;
+    }
 
     return {
       positions: new THREE.BufferAttribute(posArray, 3),
@@ -220,11 +271,15 @@ function AdvancedPointCloud({
     };
   }, [points, renderMode]);
 
-  // Animación sutil para mejorar la percepción de profundidad
+  // Animación optimizada
   useFrame((state) => {
     if (pointsRef.current) {
       const material = pointsRef.current.material as THREE.PointsMaterial;
-      material.size = pointSize + Math.sin(state.clock.elapsedTime * 0.5) * 0.2;
+      // Solo actualizar si el tamaño ha cambiado significativamente
+      const newSize = pointSize + Math.sin(state.clock.elapsedTime * 0.5) * 0.2;
+      if (Math.abs(material.size - newSize) > 0.01) {
+        material.size = newSize;
+      }
     }
   });
 
@@ -379,7 +434,7 @@ export default function PointCloudVisualizer({ points }: PointCloudProps) {
       >
         {/* Fondo y efectos */}
         <color attach='background' args={['#0a0a0f']} />
-        <fog attach='fog' args={['#0a0a0f', 50, 1000]} />
+        <fog attach='fog' args={['#0a0a0f', 0, 12000]} />
 
         {/* Iluminación */}
         <ambientLight intensity={0.6} color='#4a5568' />
