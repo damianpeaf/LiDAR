@@ -20,11 +20,12 @@ export default function ClientPointCloudWrapper() {
     disconnect,
     exportData,
     importData,
+    importFromURL,
     clearScan,
   } = useLidar();
 
   return (
-    <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
+    <div className="w-screen h-screen relative">
       <Info
         connectionStatus={connectionStatus}
         isConnected={isConnected}
@@ -34,6 +35,7 @@ export default function ClientPointCloudWrapper() {
         disconnect={disconnect}
         exportData={exportData}
         importData={importData}
+        importFromURL={importFromURL}
         clearScan={clearScan}
       />
 

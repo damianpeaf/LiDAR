@@ -1,4 +1,18 @@
-import React from 'react';
+import React, { useRef } from 'react';
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  Button,
+  Chip,
+  Divider,
+  Accordion,
+  AccordionItem,
+  Dropdown,
+  DropdownTrigger,
+  DropdownMenu,
+  DropdownItem,
+} from '@heroui/react';
 
 interface InfoProps {
   connectionStatus: string;
@@ -9,6 +23,7 @@ interface InfoProps {
   disconnect: () => void;
   exportData: () => void;
   importData: (file: File) => void;
+  importFromURL: (url: string) => void;
   clearScan: () => void;
 }
 
@@ -21,111 +36,139 @@ export const Info = ({
   disconnect,
   exportData,
   importData,
+  importFromURL,
   clearScan,
 }: InfoProps) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   return (
-    <div
-      style={{
-        position: 'absolute',
-        top: '10px',
-        left: '10px',
-        zIndex: 100,
-        backgroundColor: 'rgba(0,0,0,0.7)',
-        color: 'white',
-        padding: '10px',
-        borderRadius: '5px',
-        maxWidth: '300px',
-        fontSize: '14px',
-      }}
-    >
-      <h3 style={{ margin: '0 0 10px 0' }}>LiDAR Point Cloud Visualizer</h3>
+    <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
+      {/* Stats badge - always visible */}
+      <Chip
+        color={isConnected ? 'success' : 'default'}
+        variant="flat"
+        size="sm"
+      >
+        {points.length.toLocaleString()} pts
+      </Chip>
 
-      <p>
-        <strong>Status:</strong> {connectionStatus}
-      </p>
-      <p>
-        <strong>Connected:</strong> {isConnected ? '✅ Yes' : '❌ No'}
-      </p>
-      <p>
-        <strong>Points:</strong> {points.length}
-      </p>
-      <p>
-        <strong>Last update:</strong>{' '}
-        {lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : '—'}
-      </p>
-
-      <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-        <button
-          onClick={connect}
-          style={{
-            padding: '6px 12px',
-            borderRadius: '4px',
-            border: 'none',
-            cursor: 'pointer',
-            backgroundColor: '#28a745',
-            color: 'white',
-          }}
-        >
-          Connect
-        </button>
-        <button
-          onClick={disconnect}
-          style={{
-            padding: '6px 12px',
-            borderRadius: '4px',
-            border: 'none',
-            cursor: 'pointer',
-            backgroundColor: '#dc3545',
-            color: 'white',
-          }}
-        >
-          Disconnect
-        </button>
-      </div>
-      <div style={{ marginTop: '10px' }}>
-        <button
-          onClick={clearScan}
-          style={{
-            padding: '6px 12px',
-            borderRadius: '4px',
-            border: 'none',
-            cursor: 'pointer',
-            backgroundColor: '#ffc107',
-            color: 'white',
-          }}
-        >
-          Limpiar escaneo
-        </button>
-      </div>
-      <div style={{ marginTop: '10px', display: 'flex', gap: '8px' }}>
-        <button
-          onClick={exportData}
-          style={{
-            padding: '6px 12px',
-            borderRadius: '4px',
-            border: 'none',
-            cursor: 'pointer',
-            backgroundColor: '#007bff',
-            color: 'white',
-          }}
-        >
-          Exportar JSON
-        </button>
-      </div>
-      <div style={{ marginTop: '10px', display: 'flex', gap: '8px' }}>
-        <input
-          style={{
-            marginTop: '10px',
-          }}
-          type='file'
-          accept='application/json'
-          onChange={(e) => {
-            if (e.target.files && e.target.files[0]) {
-              importData(e.target.files[0]);
+      {/* Examples dropdown - directly accessible */}
+      <Dropdown placement="bottom-start">
+        <DropdownTrigger>
+          <Button size="sm" variant="flat" color="primary">
+            Ejemplos
+          </Button>
+        </DropdownTrigger>
+        <DropdownMenu aria-label="Ejemplos de escaneos">
+          <DropdownItem
+            key="t3-210"
+            description="Facultad de Ingeniería USAC"
+            onClick={() =>
+              importFromURL(
+                'https://pub-4fbb31ff60a64dc0a85d1af67478682f.r2.dev/test-file/t3-210.json'
+              )
             }
-          }}
-        />
-      </div>
+          >
+            Salón T3-210
+          </DropdownItem>
+        </DropdownMenu>
+      </Dropdown>
+
+      {/* Menu popover */}
+      <Popover placement="bottom-start" showArrow>
+        <PopoverTrigger>
+          <Button isIconOnly size="sm" variant="flat">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+              className="w-5 h-5"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
+              />
+            </svg>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[300px]">
+          <div className="px-1 py-2 w-full">
+            <div className="text-small font-bold mb-2">LiDAR Visualizer</div>
+
+            <div className="flex justify-between text-xs mb-3">
+              <span className="text-default-500">Estado:</span>
+              <Chip color={isConnected ? 'success' : 'default'} size="sm">
+                {connectionStatus}
+              </Chip>
+            </div>
+
+            <div className="flex justify-between text-xs mb-3">
+              <span className="text-default-500">Última actualización:</span>
+              <span className="text-xs">
+                {lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : '—'}
+              </span>
+            </div>
+
+            <Divider className="my-2" />
+
+            <Accordion isCompact>
+              <AccordionItem key="connection" title="Conexión">
+                <div className="flex gap-2 pb-2">
+                  <Button color="success" size="sm" onClick={connect} fullWidth>
+                    Conectar
+                  </Button>
+                  <Button color="danger" size="sm" onClick={disconnect} fullWidth>
+                    Desconectar
+                  </Button>
+                </div>
+              </AccordionItem>
+
+              <AccordionItem key="data" title="Datos">
+                <div className="flex flex-col gap-2 pb-2">
+                  <Button
+                    color="warning"
+                    size="sm"
+                    onClick={clearScan}
+                    fullWidth
+                  >
+                    Limpiar escaneo
+                  </Button>
+                  <Button
+                    color="primary"
+                    size="sm"
+                    onClick={exportData}
+                    fullWidth
+                  >
+                    Exportar JSON
+                  </Button>
+                  <Button
+                    color="default"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    fullWidth
+                  >
+                    Importar archivo
+                  </Button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="application/json"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        importData(e.target.files[0]);
+                      }
+                    }}
+                    className="hidden"
+                  />
+                </div>
+              </AccordionItem>
+            </Accordion>
+          </div>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 };

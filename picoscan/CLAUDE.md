@@ -5,6 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build Commands
 
 ### Building the Project
+
 ```bash
 mkdir -p build
 cd build
@@ -13,7 +14,9 @@ make
 ```
 
 ### Flashing to Pico W
+
 After building, flash the generated `picoscan.uf2` file to the Raspberry Pi Pico W by:
+
 1. Hold BOOTSEL button while connecting USB
 2. Copy `build/picoscan.uf2` to the mounted RPI-RP2 drive
 
@@ -24,18 +27,21 @@ This is a **LiDAR scanning system** built for Raspberry Pi Pico W that performs 
 ### Core Components
 
 1. **LiDAR Data Processing** (`lidar.hpp/cpp`)
+
    - Parses UART frames from LiDAR sensor (47-byte frames, 12 points per packet)
    - Handles CRC validation and point extraction
    - Each point contains: angle (0-360°), distance (mm), intensity (0-255)
 
 2. **Servo Control System** (`picoscan.cpp:77-166`)
+
    - Controls precision servo motor for vertical scanning axis
    - High-resolution positioning (5μs steps, 500-2500μs pulse range)
    - Automatic sweep pattern with sample collection at each position
    - Waits for complete LiDAR rotations before moving to next position
 
 3. **Network Communication** (`picoscan.cpp:168-291`, `ws.h/cpp`)
-   - TCP client connecting to remote server (192.168.1.24:3000)
+
+   - TCP client connecting to remote server (10.208.207.87:3000)
    - WebSocket protocol implementation for real-time data streaming
    - Batched point transmission (100 points per message)
 

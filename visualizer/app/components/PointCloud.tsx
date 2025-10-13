@@ -14,8 +14,8 @@ interface PointCloudProps {
   points: Point[];
 }
 
-// Controles FPS para movimiento tipo videojuego
-function FPSControls() {
+// Controles de cámara para movimiento tipo videojuego
+function CameraControls() {
   const { camera, gl } = useThree();
   const moveSpeed = useRef(2);
   const keys = useRef({
@@ -450,8 +450,8 @@ export default function PointCloudVisualizer({ points }: PointCloudProps) {
           color='#667eea'
         />
 
-        {/* Controles FPS */}
-        <FPSControls />
+        {/* Controles de cámara */}
+        <CameraControls />
 
         {/* Componentes principales */}
         <AdvancedPointCloud
@@ -473,29 +473,40 @@ export default function PointCloudVisualizer({ points }: PointCloudProps) {
         </button>
       </div>
 
-      {/* Información de controles FPS */}
+      {/* Información de controles */}
       <div className='absolute bottom-4 left-4 z-10 bg-black/80 backdrop-blur-sm rounded-lg p-3 text-white text-xs max-w-xs'>
-        <h3 className='font-semibold mb-2'>Controles FPS:</h3>
-        <ul className='space-y-1 text-gray-300'>
-          <li>
-            • <strong>Click:</strong> Capturar mouse
-          </li>
-          <li>
-            • <strong>WASD:</strong> Movimiento
-          </li>
-          <li>
-            • <strong>Mouse:</strong> Mirar alrededor
-          </li>
-          <li>
-            • <strong>Shift:</strong> Correr
-          </li>
-          <li>
-            • <strong>Space:</strong> Subir
-          </li>
-          <li>
-            • <strong>ESC:</strong> Liberar mouse
-          </li>
-        </ul>
+        <h3 className='font-semibold mb-2'>Controles:</h3>
+        <div className='space-y-1.5 text-gray-300'>
+          <div className='flex items-center gap-2'>
+            <span className='text-gray-400'>Click:</span>
+            <span>Capturar mouse</span>
+          </div>
+          <div className='flex items-center gap-2'>
+            <div className='flex gap-1'>
+              <kbd className='px-1.5 py-0.5 bg-gray-700 rounded text-[10px]'>W</kbd>
+              <kbd className='px-1.5 py-0.5 bg-gray-700 rounded text-[10px]'>A</kbd>
+              <kbd className='px-1.5 py-0.5 bg-gray-700 rounded text-[10px]'>S</kbd>
+              <kbd className='px-1.5 py-0.5 bg-gray-700 rounded text-[10px]'>D</kbd>
+            </div>
+            <span>Movimiento</span>
+          </div>
+          <div className='flex items-center gap-2'>
+            <span className='text-gray-400'>Mouse:</span>
+            <span>Mirar alrededor</span>
+          </div>
+          <div className='flex items-center gap-2'>
+            <kbd className='px-2 py-0.5 bg-gray-700 rounded text-[10px]'>Shift</kbd>
+            <span>Correr</span>
+          </div>
+          <div className='flex items-center gap-2'>
+            <kbd className='px-2 py-0.5 bg-gray-700 rounded text-[10px]'>Space</kbd>
+            <span>Subir</span>
+          </div>
+          <div className='flex items-center gap-2'>
+            <kbd className='px-2 py-0.5 bg-gray-700 rounded text-[10px]'>ESC</kbd>
+            <span>Liberar mouse</span>
+          </div>
+        </div>
       </div>
 
       {/* Crosshair */}

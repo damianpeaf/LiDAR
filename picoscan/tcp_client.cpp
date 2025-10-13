@@ -29,7 +29,7 @@ err_t TCPClient::tcp_client_connected_callback(void *arg, struct tcp_pcb *tpcb, 
     }
 
     client->tx_buffer_len = sprintf((char *)client->tx_buffer,
-                                    "GET / HTTP/1.1\r\nHost: 192.168.1.24:3000\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==\r\nSec-WebSocket-Protocol: chat, superchat\r\nSec-WebSocket-Version: 13\r\n\r\n");
+                                    "GET / HTTP/1.1\r\nHost: 10.208.207.87:3000\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==\r\nSec-WebSocket-Protocol: chat, superchat\r\nSec-WebSocket-Version: 13\r\n\r\n");
 
     err = tcp_write(client->tcp_pcb, client->tx_buffer, client->tx_buffer_len, TCP_WRITE_FLAG_COPY);
     client->connected = TCP_CONNECTED;

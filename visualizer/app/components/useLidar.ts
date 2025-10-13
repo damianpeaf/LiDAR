@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { addToast } from '@heroui/react';
 
 interface Point {
   intensity: number;
@@ -38,6 +39,12 @@ export const useLidar = () => {
         setIsConnected(true);
         setConnectionStatus('connected');
 
+        addToast({
+          title: 'Conectado',
+          description: 'Conexión establecida con el servidor LiDAR',
+          color: 'success',
+        });
+
         // Registrarse como cliente web
         ws.send(JSON.stringify({ type: 'register', client: 'web' }));
       };
@@ -76,6 +83,11 @@ export const useLidar = () => {
               setPoints([]);
               setLastUpdate(new Date());
               console.log('Escaneo limpiado por otro cliente');
+              addToast({
+                title: 'Escaneo limpiado',
+                description: 'Los datos fueron limpiados por otro cliente',
+                color: 'warning',
+              });
               break;
 
             case 'clear_response':
@@ -83,8 +95,18 @@ export const useLidar = () => {
               setIsClearing(false);
               if (message.success) {
                 console.log('Escaneo limpiado exitosamente');
+                addToast({
+                  title: 'Escaneo limpiado',
+                  description: 'Todos los puntos han sido eliminados',
+                  color: 'success',
+                });
               } else {
                 console.error('Error al limpiar escaneo');
+                addToast({
+                  title: 'Error al limpiar',
+                  description: 'No se pudo limpiar el escaneo',
+                  color: 'danger',
+                });
               }
               break;
 
@@ -120,6 +142,12 @@ export const useLidar = () => {
         setConnectionStatus('disconnected');
         setIsClearing(false);
         wsRef.current = null;
+
+        addToast({
+          title: 'Desconectado',
+          description: 'La conexión con el servidor se ha cerrado',
+          color: 'default',
+        });
       };
 
       ws.onerror = (error) => {
@@ -127,12 +155,24 @@ export const useLidar = () => {
         setConnectionStatus('error');
         setIsConnected(false);
         setIsClearing(false);
+
+        addToast({
+          title: 'Error de conexión',
+          description: 'No se pudo establecer conexión con el servidor',
+          color: 'danger',
+        });
       };
 
       wsRef.current = ws;
     } catch (error) {
       console.error('Error al conectar:', error);
       setConnectionStatus('error');
+
+      addToast({
+        title: 'Error',
+        description: 'Ocurrió un error al intentar conectar',
+        color: 'danger',
+      });
     }
   };
 
@@ -151,6 +191,11 @@ export const useLidar = () => {
   const clearScan = () => {
     if (!isConnected || !wsRef.current || isClearing) {
       console.warn('No se puede limpiar: no conectado o ya limpiando');
+      addToast({
+        title: 'No disponible',
+        description: 'Debes estar conectado para limpiar el escaneo',
+        color: 'warning',
+      });
       return;
     }
 
@@ -162,6 +207,11 @@ export const useLidar = () => {
     } catch (error) {
       console.error('Error al enviar solicitud de limpieza:', error);
       setIsClearing(false);
+      addToast({
+        title: 'Error',
+        description: 'No se pudo enviar la solicitud de limpieza',
+        color: 'danger',
+      });
     }
   };
 
@@ -175,16 +225,31 @@ export const useLidar = () => {
   }, []);
 
   const exportData = () => {
-    const dataStr =
-      'data:text/json;charset=utf-8,' +
-      encodeURIComponent(JSON.stringify(points));
+    try {
+      const dataStr =
+        'data:text/json;charset=utf-8,' +
+        encodeURIComponent(JSON.stringify(points));
 
-    const link = document.createElement('a');
-    link.href = dataStr;
-    link.download = 'lidar_data.json';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const link = document.createElement('a');
+      link.href = dataStr;
+      link.download = 'lidar_data.json';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      addToast({
+        title: 'Datos exportados',
+        description: `${points.length} puntos exportados exitosamente`,
+        color: 'success',
+      });
+    } catch (error) {
+      console.error('Error al exportar datos:', error);
+      addToast({
+        title: 'Error al exportar',
+        description: 'No se pudieron exportar los datos',
+        color: 'danger',
+      });
+    }
   };
 
   const importData = (file: File) => {
@@ -197,12 +262,63 @@ export const useLidar = () => {
         setPoints((prevPoints) => [...prevPoints, ...importedPoints]);
         setLastUpdate(new Date());
         console.log(`Puntos importados: ${importedPoints.length}`);
+
+        addToast({
+          title: 'Datos importados',
+          description: `${importedPoints.length} puntos importados desde ${file.name}`,
+          color: 'success',
+        });
       } catch (error) {
         console.error('Error al importar datos:', error);
+        addToast({
+          title: 'Error al importar',
+          description: 'El archivo no tiene un formato válido',
+          color: 'danger',
+        });
       }
     };
 
+    reader.onerror = () => {
+      addToast({
+        title: 'Error de lectura',
+        description: 'No se pudo leer el archivo',
+        color: 'danger',
+      });
+    };
+
     reader.readAsText(file);
+  };
+
+  const importFromURL = async (url: string) => {
+    try {
+      addToast({
+        title: 'Descargando',
+        description: 'Cargando datos desde el servidor...',
+        color: 'primary',
+      });
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Error al descargar archivo: ${response.status}`);
+      }
+      const importedPoints: Point[] = await response.json();
+      setPoints((prevPoints) => [...prevPoints, ...importedPoints]);
+      setLastUpdate(new Date());
+      console.log(`Puntos importados desde URL: ${importedPoints.length}`);
+
+      addToast({
+        title: 'Ejemplo cargado',
+        description: `${importedPoints.length} puntos importados exitosamente`,
+        color: 'success',
+      });
+    } catch (error) {
+      console.error('Error al importar datos desde URL:', error);
+      addToast({
+        title: 'Error al cargar',
+        description: 'No se pudo descargar el archivo de ejemplo',
+        color: 'danger',
+      });
+    }
   };
 
   return {
@@ -216,5 +332,6 @@ export const useLidar = () => {
     clearScan,
     exportData,
     importData,
+    importFromURL,
   };
 };
