@@ -19,6 +19,6 @@ Especial atención a:
 
 ## Nota importante
 
-Este repo preserva material histórico con fines de trazabilidad. La reorganización actual **no reescribe historia git** ni elimina retrospectivamente secretos o datos sensibles ya existentes en commits previos.
+Este repositorio incluye código experimental y configuraciones de distintas etapas del proyecto. Antes de usarlo en entornos públicos o compartidos, revisá credenciales, hosts, puertos y datos sensibles.
 
 Antes de una publicación abierta definitiva, conviene realizar una auditoría manual adicional.

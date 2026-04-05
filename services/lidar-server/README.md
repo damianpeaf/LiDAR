@@ -18,7 +18,7 @@ Servicio Python que recibe datos LiDAR, los transforma a coordenadas cartesianas
 docker compose up --build
 ```
 
-Eso levanta Redis + `lidar-server` con la configuración correcta para la línea principal actual.
+Eso levanta Redis + `lidar-server` con la configuración esperada por el visualizador.
 
 ### Opción manual
 
@@ -39,9 +39,9 @@ python main.py
 - `3000` — WebSocket server
 - `6379` — Redis (si usás Docker Compose desde la raíz)
 
-## Artefactos históricos movidos
+## Reportes y artefactos
 
-Los reportes de performance viven ahora en:
+Reportes de performance disponibles en:
 
 - `../../data/services/lidar-server/performance_reports/`
 

@@ -13,5 +13,5 @@ flowchart LR
 
 ## Notas
 
-- `puntos.json` sigue en `apps/visualizer/public/` por compatibilidad actual.
-- Los snapshots auxiliares ya no viven dentro del runtime principal; fueron movidos a `data/`.
+- `puntos.json` vive en `apps/visualizer/public/` porque el frontend lo usa directamente.
+- Snapshots y archivos auxiliares relacionados se documentan en `data/`.

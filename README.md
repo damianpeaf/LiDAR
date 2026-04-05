@@ -1,6 +1,6 @@
 # LiDAR
 
-![Repository status](https://img.shields.io/badge/status-reorganized-0a66c2)
+![Repository status](https://img.shields.io/badge/status-research%20prototype-0a66c2)
 ![Firmware](https://img.shields.io/badge/firmware-Raspberry%20Pi%20Pico%20W-6f42c1)
 ![Frontend](https://img.shields.io/badge/frontend-Next.js-111111)
 ![Backend](https://img.shields.io/badge/backend-Python%20WebSockets-3776ab)
@@ -25,14 +25,9 @@ Proyecto de investigación y desarrollo de captura LiDAR orientado a escaneo 3D 
 
 ## Resumen
 
-El repo quedó reorganizado para separar con claridad:
+Este repositorio reúne el firmware, backend, visualizador y material experimental de un sistema LiDAR de bajo costo para captura y exploración de nubes de puntos.
 
-- **producto actual**
-- **experimentos históricos**
-- **datasets / reportes / snapshots**
-- **documentación para publicación open source**
-
-La línea activa hoy está compuesta por:
+Los componentes principales son:
 
 - `firmware/picoscan`
 - `services/lidar-server`
@@ -51,7 +46,7 @@ Aplicación Next.js para visualización interactiva de la nube de puntos y opera
 
 ## Quick start
 
-La forma más simple de probar la línea principal hoy es levantar primero la infraestructura base con Docker.
+La forma más simple de probar el sistema es levantar primero la infraestructura base con Docker.
 
 ### 1) Infraestructura base con Docker
 
@@ -64,7 +59,7 @@ Esto levanta:
 - `redis` en `localhost:6379`
 - `lidar-server` en `ws://localhost:3000`
 
-> El `docker-compose.yml` histórico de `experiments/lidar/` se conserva solo como referencia legacy. El compose de la raíz es el recomendado para la línea principal actual.
+> Si querés revisar una implementación anterior basada en Docker, hay un compose separado en `experiments/lidar/`.
 
 ### 2) Frontend
 
@@ -142,7 +137,7 @@ Documentación relacionada:
 
 ## Datasets y artefactos
 
-Los artefactos movibles fueron centralizados en `data/` manteniendo trazabilidad por origen.
+La carpeta `data/` reúne snapshots, reportes y archivos auxiliares organizados por origen.
 
 Ejemplos:
 
@@ -151,13 +146,13 @@ Ejemplos:
 - `data/apps/visualizer/public/`
 - `data/apps/visualizer/app-data/`
 
-### Excepción intencional
+### Archivo usado por la aplicación
 
-`apps/visualizer/public/puntos.json` **no se movió** porque sigue siendo una ruta activa hardcodeada en el flujo actual.
+`apps/visualizer/public/puntos.json` forma parte del flujo de la aplicación web y se mantiene junto al frontend.
 
 ## Deploy en Vercel
 
-El proyecto Vercel `lidar` quedó actualizado para usar:
+El proyecto Vercel `lidar` usa:
 
 - **Root Directory:** `apps/visualizer`
 
@@ -169,9 +164,9 @@ vercel project inspect lidar
 
 ## Histórico y experimentos
 
-Todo el material no perteneciente a la línea principal vive en [`experiments/`](./experiments/README.md).
+Las pruebas de concepto, variantes anteriores y experimentos de hardware viven en [`experiments/`](./experiments/README.md).
 
-Se preservaron nombres históricos para no romper trazabilidad, incluyendo typos existentes como `integraton_poc`.
+Algunas carpetas conservan nombres originales, incluyendo `integraton_poc`.
 
 ## Contribución
 

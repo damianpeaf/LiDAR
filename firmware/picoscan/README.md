@@ -1,6 +1,6 @@
 # picoscan
 
-Firmware principal de la línea activa para Raspberry Pi Pico W.
+Firmware para Raspberry Pi Pico W usado para capturar y transmitir puntos LiDAR.
 
 ## Responsabilidades
 
@@ -19,7 +19,7 @@ Firmware principal de la línea activa para Raspberry Pi Pico W.
 
 ## Build manual
 
-No ejecutado en esta reorganización. Flujo esperado:
+Flujo de compilación esperado:
 
 ```bash
 mkdir build
@@ -37,4 +37,4 @@ cmake --build .
 ## Advertencias
 
 - Revisá credenciales o direcciones hardcodeadas antes de publicar o desplegar hardware real.
-- El repo no reescribe historia ni purga secretos históricos automáticamente.
+- Revisá el código fuente antes de usar hardware real o publicar configuraciones de red.
