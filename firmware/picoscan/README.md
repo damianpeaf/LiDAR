@@ -37,4 +37,3 @@ cmake --build .
 ## Advertencias
 
 - Revisá credenciales o direcciones hardcodeadas antes de publicar o desplegar hardware real.
-- Revisá el código fuente antes de usar hardware real o publicar configuraciones de red.

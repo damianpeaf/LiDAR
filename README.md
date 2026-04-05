@@ -10,56 +10,30 @@ Proyecto de investigación y desarrollo de captura LiDAR orientado a escaneo 3D 
 
 ## Índice
 
-- [Resumen](#resumen)
-- [Línea principal del repo](#línea-principal-del-repo)
 - [Quick start](#quick-start)
+- [Qué incluye](#qué-incluye)
 - [Estructura](#estructura)
 - [Arquitectura](#arquitectura)
 - [Datasets y artefactos](#datasets-y-artefactos)
-- [Deploy en Vercel](#deploy-en-vercel)
-- [Histórico y experimentos](#histórico-y-experimentos)
 - [Contribución](#contribución)
 - [Seguridad](#seguridad)
 - [Licencia](#licencia)
 - [Cómo citar](#cómo-citar)
 
-## Resumen
-
-Este repositorio reúne el firmware, backend, visualizador y material experimental de un sistema LiDAR de bajo costo para captura y exploración de nubes de puntos.
-
-Los componentes principales son:
-
-- `firmware/picoscan`
-- `services/lidar-server`
-- `apps/visualizer`
-
-## Línea principal del repo
-
-### `firmware/picoscan`
-Firmware para Raspberry Pi Pico W que captura datos del sensor, controla el barrido y transmite puntos.
-
-### `services/lidar-server`
-Servicio Python con WebSockets y Redis para recibir, persistir y retransmitir la nube de puntos.
-
-### `apps/visualizer`
-Aplicación Next.js para visualización interactiva de la nube de puntos y operación manual desde web.
-
 ## Quick start
 
-La forma más simple de probar el sistema es levantar primero la infraestructura base con Docker.
+La forma más simple de probar el sistema es levantar backend + Redis con Docker y luego abrir el visualizador.
 
-### 1) Infraestructura base con Docker
+### 1) Backend + Redis
 
 ```bash
 docker compose up --build
 ```
 
-Esto levanta:
+Esto expone:
 
 - `redis` en `localhost:6379`
 - `lidar-server` en `ws://localhost:3000`
-
-> Si querés revisar una implementación anterior basada en Docker, hay un compose separado en `experiments/lidar/`.
 
 ### 2) Frontend
 
@@ -71,7 +45,9 @@ pnpm dev
 
 La app espera un WebSocket en `ws://localhost:3000`.
 
-### 3) Backend sin Docker (alternativa)
+Abrí luego `http://localhost:3000` en el navegador.
+
+### 3) Backend sin Docker (opcional)
 
 ```bash
 cd services/lidar-server
@@ -86,6 +62,15 @@ Requiere Redis disponible en `redis://localhost:6379/0` o configurar `REDIS_URL`
 ### 4) Firmware
 
 Ver instrucciones en [`firmware/picoscan/README.md`](./firmware/picoscan/README.md).
+
+## Qué incluye
+
+- `apps/visualizer` — visualizador web en Next.js
+- `services/lidar-server` — servidor WebSocket y persistencia temporal en Redis
+- `firmware/picoscan` — firmware para Raspberry Pi Pico W
+- `data/` — snapshots y reportes de ejemplo
+- `docs/` — diagramas y documentación técnica
+- `experiments/` — prototipos y pruebas anteriores
 
 ## Estructura
 
@@ -149,24 +134,6 @@ Ejemplos:
 ### Archivo usado por la aplicación
 
 `apps/visualizer/public/puntos.json` forma parte del flujo de la aplicación web y se mantiene junto al frontend.
-
-## Deploy en Vercel
-
-El proyecto Vercel `lidar` usa:
-
-- **Root Directory:** `apps/visualizer`
-
-Comando de verificación:
-
-```bash
-vercel project inspect lidar
-```
-
-## Histórico y experimentos
-
-Las pruebas de concepto, variantes anteriores y experimentos de hardware viven en [`experiments/`](./experiments/README.md).
-
-Algunas carpetas conservan nombres originales, incluyendo `integraton_poc`.
 
 ## Contribución
 

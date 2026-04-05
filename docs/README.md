@@ -1,6 +1,6 @@
 # Docs
 
-Documentación técnica y de estructura del repositorio.
+Documentación técnica del sistema.
 
 ## Contenido
 

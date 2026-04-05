@@ -2,23 +2,15 @@
 
 Servicio Python que recibe datos LiDAR, los transforma a coordenadas cartesianas, los persiste en Redis y los retransmite a clientes web por WebSocket.
 
-## Responsabilidades
-
-- aceptar conexiones desde firmware Pico
-- aceptar clientes web
-- almacenar puntos en Redis
-- retransmitir nuevos puntos
-- limpiar el escaneo actual bajo demanda
-
 ## Desarrollo local
 
-### Opción recomendada: Docker Compose desde la raíz del repo
+### Opción recomendada
 
 ```bash
 docker compose up --build
 ```
 
-Eso levanta Redis + `lidar-server` con la configuración esperada por el visualizador.
+Eso levanta Redis y el servidor WebSocket en `localhost:3000`.
 
 ### Opción manual
 
@@ -41,13 +33,11 @@ python main.py
 
 ## Reportes y artefactos
 
-Reportes de performance disponibles en:
+Archivos relacionados disponibles en:
 
 - `../../data/services/lidar-server/performance_reports/`
 
 ## Archivos clave
 
 - `main.py` — servidor WebSocket principal
-- `_main.py` — implementación previa basada en Flask
 - `parse.py` — helpers de parsing y pruebas manuales
-- `Dockerfile` — imagen ejecutable del servicio principal
