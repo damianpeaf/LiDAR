@@ -8,6 +8,12 @@
 
 Proyecto de investigación y desarrollo de captura LiDAR orientado a escaneo 3D de bajo costo para trabajo de campo y visualización en tiempo real.
 
+Stack principal:
+
+- firmware en Raspberry Pi Pico W
+- backend Python + Redis
+- visualizador web en Next.js
+
 ## Índice
 
 - [Quick start](#quick-start)
@@ -23,6 +29,12 @@ Proyecto de investigación y desarrollo de captura LiDAR orientado a escaneo 3D 
 ## Quick start
 
 La forma más simple de probar el sistema es levantar backend + Redis con Docker y luego abrir el visualizador.
+
+### Requisitos
+
+- Docker y Docker Compose
+- Node.js 20+
+- pnpm
 
 ### 1) Backend + Redis
 
@@ -71,6 +83,12 @@ Ver instrucciones en [`firmware/picoscan/README.md`](./firmware/picoscan/README.
 - `data/` — snapshots y reportes de ejemplo
 - `docs/` — diagramas y documentación técnica
 - `experiments/` — prototipos y pruebas anteriores
+
+Si querés empezar rápido, concentrate en:
+
+- `docker-compose.yml`
+- `apps/visualizer/`
+- `services/lidar-server/`
 
 ## Estructura
 
@@ -134,6 +152,12 @@ Ejemplos:
 ### Archivo usado por la aplicación
 
 `apps/visualizer/public/puntos.json` forma parte del flujo de la aplicación web y se mantiene junto al frontend.
+
+## Siguiente paso recomendado
+
+1. `docker compose up --build`
+2. `cd apps/visualizer && pnpm install && pnpm dev`
+3. abrir `http://localhost:3000`
 
 ## Contribución
 
