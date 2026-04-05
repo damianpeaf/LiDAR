@@ -12,6 +12,16 @@ Servicio Python que recibe datos LiDAR, los transforma a coordenadas cartesianas
 
 ## Desarrollo local
 
+### Opción recomendada: Docker Compose desde la raíz del repo
+
+```bash
+docker compose up --build
+```
+
+Eso levanta Redis + `lidar-server` con la configuración correcta para la línea principal actual.
+
+### Opción manual
+
 ```bash
 python -m venv .venv
 .venv\Scripts\activate
@@ -24,6 +34,11 @@ python main.py
 - Python 3.12+
 - Redis accesible por `REDIS_URL`
 
+## Puertos
+
+- `3000` — WebSocket server
+- `6379` — Redis (si usás Docker Compose desde la raíz)
+
 ## Artefactos históricos movidos
 
 Los reportes de performance viven ahora en:
@@ -35,4 +50,4 @@ Los reportes de performance viven ahora en:
 - `main.py` — servidor WebSocket principal
 - `_main.py` — implementación previa basada en Flask
 - `parse.py` — helpers de parsing y pruebas manuales
-- `Dockerfile` — contenedor mínimo de desarrollo
+- `Dockerfile` — imagen ejecutable del servicio principal

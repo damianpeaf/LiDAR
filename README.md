@@ -51,19 +51,20 @@ Aplicación Next.js para visualización interactiva de la nube de puntos y opera
 
 ## Quick start
 
-> No hice builds en esta reorganización. Estos pasos documentan cómo levantar cada parte.
+La forma más simple de probar la línea principal hoy es levantar primero la infraestructura base con Docker.
 
-### 1) Backend
+### 1) Infraestructura base con Docker
 
 ```bash
-cd services/lidar-server
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-python main.py
+docker compose up --build
 ```
 
-Requiere Redis disponible en `redis://localhost:6379/0` o configurar `REDIS_URL`.
+Esto levanta:
+
+- `redis` en `localhost:6379`
+- `lidar-server` en `ws://localhost:3000`
+
+> El `docker-compose.yml` histórico de `experiments/lidar/` se conserva solo como referencia legacy. El compose de la raíz es el recomendado para la línea principal actual.
 
 ### 2) Frontend
 
@@ -75,7 +76,19 @@ pnpm dev
 
 La app espera un WebSocket en `ws://localhost:3000`.
 
-### 3) Firmware
+### 3) Backend sin Docker (alternativa)
+
+```bash
+cd services/lidar-server
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python main.py
+```
+
+Requiere Redis disponible en `redis://localhost:6379/0` o configurar `REDIS_URL`.
+
+### 4) Firmware
 
 Ver instrucciones en [`firmware/picoscan/README.md`](./firmware/picoscan/README.md).
 
