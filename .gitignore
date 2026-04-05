@@ -1,0 +1,32 @@
+.DS_Store
+
+# JavaScript / Next.js
+**/node_modules/
+**/.next/
+**/out/
+**/.vercel/
+**/*.tsbuildinfo
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.venv/
+**/venv/
+
+# C/C++ / Pico SDK
+**/build/
+**/CMakeFiles/
+**/CMakeCache.txt
+**/*.elf
+**/*.elf.map
+**/*.bin
+**/*.hex
+**/*.uf2
+**/*.dis
+
+# Logs and local env files
+*.log
+*.local
+*.env
+*.env.*
