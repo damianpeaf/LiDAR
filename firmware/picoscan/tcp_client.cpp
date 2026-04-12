@@ -4,6 +4,12 @@
 #include <cstring>
 #include <cstdlib>
 
+// La secuencia de upgrade HTTP a WebSocket se armó tomando como referencia
+// ejemplos públicos de la comunidad para Pico W, en particular el trabajo de Sam Kent,
+// y luego se adaptó a las necesidades de este proyecto.
+// Referencia utilizada como punto de partida general
+// https://github.com/samjkent/picow-websocket
+
 TCPClient::TCPClient() : points_count(0), tcp_pcb(nullptr), tx_buffer_len(0),
                          rx_buffer_len(0), connected(TCP_DISCONNECTED), handshake_complete(false)
 {

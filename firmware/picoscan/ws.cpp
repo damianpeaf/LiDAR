@@ -3,6 +3,11 @@
 #include <stdlib.h>
 #include "ws.h"
 
+// Implementación basada en una adaptación propia a partir de RFC 6455
+// y de una referencia pública para Raspberry Pi Pico W publicada por Sam Kent.
+// Referencia utilizada como punto de partida general
+// https://github.com/samjkent/picow-websocket
+
 #define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
 #define BYTE_TO_BINARY(byte)  \
   (byte & 0x80 ? '1' : '0'), \
@@ -130,4 +135,3 @@ int WS::ParsePacket(WebsocketPacketHeader_t *header, char* buffer, uint32_t len)
     return 0;
 
 }
-

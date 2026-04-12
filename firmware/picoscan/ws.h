@@ -1,6 +1,11 @@
 #ifndef WS_H
 #define WS_H
 
+// Implementación basada en una adaptación propia a partir de RFC 6455
+// y de una referencia pública para Raspberry Pi Pico W publicada por Sam Kent.
+// Referencia utilizada como punto de partida general
+// https://github.com/samjkent/picow-websocket
+
 #include <stdint.h>
 #include <stdbool.h>
 
