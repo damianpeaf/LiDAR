@@ -71,6 +71,61 @@ export const Info = ({
           >
             Salón T3-210
           </DropdownItem>
+          <DropdownItem
+            key="dataset-01"
+            description="TF-Mini S · φ 0°–60° · 11,041 pts"
+            onClick={() =>
+              importFromURL(
+                'https://pub-4fbb31ff60a64dc0a85d1af67478682f.r2.dev/datasets/dataset-01.json'
+              )
+            }
+          >
+            Dataset 01
+          </DropdownItem>
+          <DropdownItem
+            key="dataset-02"
+            description="TF-Mini S · φ 65°–120° · 9,799 pts"
+            onClick={() =>
+              importFromURL(
+                'https://pub-4fbb31ff60a64dc0a85d1af67478682f.r2.dev/datasets/dataset-02.json'
+              )
+            }
+          >
+            Dataset 02
+          </DropdownItem>
+          <DropdownItem
+            key="dataset-03"
+            description="TF-Mini S · φ 26°–120° · 16,659 pts"
+            onClick={() =>
+              importFromURL(
+                'https://pub-4fbb31ff60a64dc0a85d1af67478682f.r2.dev/datasets/dataset-03.json'
+              )
+            }
+          >
+            Dataset 03
+          </DropdownItem>
+          <DropdownItem
+            key="dataset-04"
+            description="TF-Mini S · φ 10°–120° · 19,600 pts"
+            onClick={() =>
+              importFromURL(
+                'https://pub-4fbb31ff60a64dc0a85d1af67478682f.r2.dev/datasets/dataset-04.json'
+              )
+            }
+          >
+            Dataset 04
+          </DropdownItem>
+          <DropdownItem
+            key="dataset-05"
+            description="LD19 · 2D estático · 99 pts"
+            onClick={() =>
+              importFromURL(
+                'https://pub-4fbb31ff60a64dc0a85d1af67478682f.r2.dev/datasets/dataset-05.json'
+              )
+            }
+          >
+            Dataset 05
+          </DropdownItem>
         </DropdownMenu>
       </Dropdown>
 

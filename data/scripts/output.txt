@@ -1,0 +1,406 @@
+
+============================================================
+Dataset: TF-Mini S1 (phi=60°)
+Archivo: C:\Users\damia\tesis\LiDAR\data\apps\visualizer\public\puntos1.json
+  Puntos totales:      11,041
+  Distancia (r) mm:    min=50, max=447, media=207.7, sd=73.7
+  Theta (°):           0–180, únicos=181, cobertura=100.0%
+  Phi (°) únicos:      [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+  Strength:            min=449, max=19847, media=4338.0, sd=2569.2
+
+============================================================
+Dataset: TF-Mini S2 (phi=120°)
+Archivo: C:\Users\damia\tesis\LiDAR\data\apps\visualizer\public\puntos2.json
+  Puntos totales:      10,090
+  Distancia (r) mm:    min=0, max=65535, media=2000.2, sd=10833.2
+  Theta (°):           0–180, únicos=181, cobertura=100.0%
+  Phi (°) únicos:      [65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84]
+  Strength:            min=12, max=21360, media=4546.4, sd=4142.5
+
+============================================================
+Dataset: TF-Mini S3 (phi=120°, sesión extendida A)
+Archivo: C:\Users\damia\tesis\LiDAR\data\apps\visualizer\public\puntos copy.json
+  Puntos totales:      17,002
+  Distancia (r) mm:    min=21, max=65535, media=1519.5, sd=9186.7
+  Theta (°):           0–180, únicos=181, cobertura=100.0%
+  Phi (°) únicos:      [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45]
+  Strength:            min=11, max=21015, media=3744.4, sd=2761.4
+
+============================================================
+Dataset: TF-Mini S4 (phi=120°, sesión extendida B)
+Archivo: C:\Users\damia\tesis\LiDAR\data\apps\visualizer\public\puntos copy 2.json
+  Puntos totales:      19,943
+  Distancia (r) mm:    min=21, max=65535, media=1331.4, sd=8494.4
+  Theta (°):           0–180, únicos=181, cobertura=100.0%
+  Phi (°) únicos:      [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29]
+  Strength:            min=11, max=21015, media=3623.5, sd=2633.9
+
+============================================================
+Dataset: LD19 (2D, phi=0°)
+Archivo: C:\Users\damia\tesis\LiDAR\apps\visualizer\public\puntos.json
+  Puntos totales:      99
+  Distancia (r) mm:    min=80, max=153, media=131.3, sd=27.5
+  Theta (°):           0–98, únicos=99, cobertura=54.7%
+  Phi (°) únicos:      [0]
+  Strength:            min=2052, max=19117, media=10298.6, sd=4540.9
+
+
+============================================================
+TABLA COMPARATIVA RESUMEN
+============================================================
+Dataset                                      Puntos  r_min  r_max  r_mean  r_std theta_cov%  str_mean
+----------------------------------------------------------------------------------------------------
+TF-Mini S1 (phi=60°)                         11,041     50    447   207.7   73.7      100.0    4338.0
+TF-Mini S2 (phi=120°)                        10,090      0  65535  2000.2 10833.2      100.0    4546.4
+TF-Mini S3 (phi=120°, sesión extendida A)    17,002     21  65535  1519.5 9186.7      100.0    3744.4
+TF-Mini S4 (phi=120°, sesión extendida B)    19,943     21  65535  1331.4 8494.4      100.0    3623.5
+LD19 (2D, phi=0°)                                99     80    153   131.3   27.5       54.7   10298.6
+
+
+============================================================
+ANÁLISIS DE PRECISIÓN POR ÁNGULO FIJO (theta=90°)
+============================================================
+  TF-Mini S1 (phi=60°): n=61, media=245.2 mm, sd=79.84 mm, rango=160-444 mm
+  TF-Mini S2 (phi=120°): n=56, media=221.9 mm, sd=109.65 mm, rango=4-369 mm
+  TF-Mini S3 (phi=120°, sesión extendida A: n=94, media=181.9 mm, sd=95.48 mm, rango=40-336 mm
+  TF-Mini S4 (phi=120°, sesión extendida B: n=110, media=191.3 mm, sd=91.60 mm, rango=40-336 mm
+  LD19 (2D, phi=0°): n=1, r=113 mm
+
+
+============================================================
+DENSIDAD DE PUNTOS POR NIVEL PHI
+============================================================
+
+  TF-Mini S1 (phi=60°):
+    phi=  0°:   181 puntos
+    phi=  1°:   181 puntos
+    phi=  2°:   181 puntos
+    phi=  3°:   181 puntos
+    phi=  4°:   181 puntos
+    phi=  5°:   181 puntos
+    phi=  6°:   181 puntos
+    phi=  7°:   181 puntos
+    phi=  8°:   181 puntos
+    phi=  9°:   181 puntos
+    phi= 10°:   181 puntos
+    phi= 11°:   181 puntos
+    phi= 12°:   181 puntos
+    phi= 13°:   181 puntos
+    phi= 14°:   181 puntos
+    phi= 15°:   181 puntos
+    phi= 16°:   181 puntos
+    phi= 17°:   181 puntos
+    phi= 18°:   181 puntos
+    phi= 19°:   181 puntos
+    phi= 20°:   181 puntos
+    phi= 21°:   181 puntos
+    phi= 22°:   181 puntos
+    phi= 23°:   181 puntos
+    phi= 24°:   181 puntos
+    phi= 25°:   181 puntos
+    phi= 26°:   181 puntos
+    phi= 27°:   181 puntos
+    phi= 28°:   181 puntos
+    phi= 29°:   181 puntos
+    phi= 30°:   181 puntos
+    phi= 31°:   181 puntos
+    phi= 32°:   181 puntos
+    phi= 33°:   181 puntos
+    phi= 34°:   181 puntos
+    phi= 35°:   181 puntos
+    phi= 36°:   181 puntos
+    phi= 37°:   181 puntos
+    phi= 38°:   181 puntos
+    phi= 39°:   181 puntos
+    phi= 40°:   181 puntos
+    phi= 41°:   181 puntos
+    phi= 42°:   181 puntos
+    phi= 43°:   181 puntos
+    phi= 44°:   181 puntos
+    phi= 45°:   181 puntos
+    phi= 46°:   181 puntos
+    phi= 47°:   181 puntos
+    phi= 48°:   181 puntos
+    phi= 49°:   181 puntos
+    phi= 50°:   181 puntos
+    phi= 51°:   181 puntos
+    phi= 52°:   181 puntos
+    phi= 53°:   181 puntos
+    phi= 54°:   181 puntos
+    phi= 55°:   181 puntos
+    phi= 56°:   181 puntos
+    phi= 57°:   181 puntos
+    phi= 58°:   181 puntos
+    phi= 59°:   181 puntos
+    phi= 60°:   181 puntos
+
+  TF-Mini S2 (phi=120°):
+    phi= 65°:   135 puntos
+    phi= 66°:   181 puntos
+    phi= 67°:   181 puntos
+    phi= 68°:   181 puntos
+    phi= 69°:   181 puntos
+    phi= 70°:   181 puntos
+    phi= 71°:   181 puntos
+    phi= 72°:   181 puntos
+    phi= 73°:   181 puntos
+    phi= 74°:   181 puntos
+    phi= 75°:   181 puntos
+    phi= 76°:   181 puntos
+    phi= 77°:   181 puntos
+    phi= 78°:   181 puntos
+    phi= 79°:   181 puntos
+    phi= 80°:   181 puntos
+    phi= 81°:   181 puntos
+    phi= 82°:   181 puntos
+    phi= 83°:   181 puntos
+    phi= 84°:   181 puntos
+    phi= 85°:   181 puntos
+    phi= 86°:   181 puntos
+    phi= 87°:   181 puntos
+    phi= 88°:   181 puntos
+    phi= 89°:   181 puntos
+    phi= 90°:   181 puntos
+    phi= 91°:   181 puntos
+    phi= 92°:   181 puntos
+    phi= 93°:   181 puntos
+    phi= 94°:   181 puntos
+    phi= 95°:   181 puntos
+    phi= 96°:   181 puntos
+    phi= 97°:   181 puntos
+    phi= 98°:   181 puntos
+    phi= 99°:   181 puntos
+    phi=100°:   181 puntos
+    phi=101°:   181 puntos
+    phi=102°:   181 puntos
+    phi=103°:   181 puntos
+    phi=104°:   181 puntos
+    phi=105°:   181 puntos
+    phi=106°:   181 puntos
+    phi=107°:   181 puntos
+    phi=108°:   181 puntos
+    phi=109°:   181 puntos
+    phi=110°:   181 puntos
+    phi=111°:   181 puntos
+    phi=112°:   181 puntos
+    phi=113°:   181 puntos
+    phi=114°:   181 puntos
+    phi=115°:   181 puntos
+    phi=116°:   181 puntos
+    phi=117°:   181 puntos
+    phi=118°:   181 puntos
+    phi=119°:   181 puntos
+    phi=120°:   181 puntos
+
+  TF-Mini S3 (phi=120°, sesión extendida A):
+    phi= 26°:     6 puntos
+    phi= 27°:   181 puntos
+    phi= 28°:   181 puntos
+    phi= 29°:   181 puntos
+    phi= 30°:   181 puntos
+    phi= 31°:   181 puntos
+    phi= 32°:   181 puntos
+    phi= 33°:   181 puntos
+    phi= 34°:   181 puntos
+    phi= 35°:   181 puntos
+    phi= 36°:   181 puntos
+    phi= 37°:   181 puntos
+    phi= 38°:   181 puntos
+    phi= 39°:   181 puntos
+    phi= 40°:   181 puntos
+    phi= 41°:   181 puntos
+    phi= 42°:   181 puntos
+    phi= 43°:   181 puntos
+    phi= 44°:   181 puntos
+    phi= 45°:   181 puntos
+    phi= 46°:   181 puntos
+    phi= 47°:   181 puntos
+    phi= 48°:   181 puntos
+    phi= 49°:   181 puntos
+    phi= 50°:   181 puntos
+    phi= 51°:   181 puntos
+    phi= 52°:   181 puntos
+    phi= 53°:   181 puntos
+    phi= 54°:   180 puntos
+    phi= 55°:   178 puntos
+    phi= 56°:   179 puntos
+    phi= 57°:   179 puntos
+    phi= 58°:   178 puntos
+    phi= 59°:   181 puntos
+    phi= 60°:   180 puntos
+    phi= 61°:   180 puntos
+    phi= 62°:   180 puntos
+    phi= 63°:   180 puntos
+    phi= 64°:   180 puntos
+    phi= 65°:   180 puntos
+    phi= 66°:   180 puntos
+    phi= 67°:   181 puntos
+    phi= 68°:   181 puntos
+    phi= 69°:   181 puntos
+    phi= 70°:   181 puntos
+    phi= 71°:   181 puntos
+    phi= 72°:   181 puntos
+    phi= 73°:   181 puntos
+    phi= 74°:   181 puntos
+    phi= 75°:   181 puntos
+    phi= 76°:   181 puntos
+    phi= 77°:   181 puntos
+    phi= 78°:   181 puntos
+    phi= 79°:   181 puntos
+    phi= 80°:   181 puntos
+    phi= 81°:   181 puntos
+    phi= 82°:   181 puntos
+    phi= 83°:   181 puntos
+    phi= 84°:   181 puntos
+    phi= 85°:   181 puntos
+    phi= 86°:   181 puntos
+    phi= 87°:   181 puntos
+    phi= 88°:   181 puntos
+    phi= 89°:   181 puntos
+    phi= 90°:   181 puntos
+    phi= 91°:   181 puntos
+    phi= 92°:   181 puntos
+    phi= 93°:   181 puntos
+    phi= 94°:   181 puntos
+    phi= 95°:   181 puntos
+    phi= 96°:   181 puntos
+    phi= 97°:   181 puntos
+    phi= 98°:   181 puntos
+    phi= 99°:   181 puntos
+    phi=100°:   181 puntos
+    phi=101°:   181 puntos
+    phi=102°:   181 puntos
+    phi=103°:   181 puntos
+    phi=104°:   181 puntos
+    phi=105°:   181 puntos
+    phi=106°:   181 puntos
+    phi=107°:   181 puntos
+    phi=108°:   181 puntos
+    phi=109°:   181 puntos
+    phi=110°:   181 puntos
+    phi=111°:   181 puntos
+    phi=112°:   181 puntos
+    phi=113°:   181 puntos
+    phi=114°:   181 puntos
+    phi=115°:   181 puntos
+    phi=116°:   181 puntos
+    phi=117°:   181 puntos
+    phi=118°:   181 puntos
+    phi=119°:   181 puntos
+    phi=120°:   181 puntos
+
+  TF-Mini S4 (phi=120°, sesión extendida B):
+    phi= 10°:    51 puntos
+    phi= 11°:   181 puntos
+    phi= 12°:   181 puntos
+    phi= 13°:   181 puntos
+    phi= 14°:   181 puntos
+    phi= 15°:   181 puntos
+    phi= 16°:   181 puntos
+    phi= 17°:   181 puntos
+    phi= 18°:   181 puntos
+    phi= 19°:   181 puntos
+    phi= 20°:   181 puntos
+    phi= 21°:   181 puntos
+    phi= 22°:   181 puntos
+    phi= 23°:   181 puntos
+    phi= 24°:   181 puntos
+    phi= 25°:   181 puntos
+    phi= 26°:   181 puntos
+    phi= 27°:   181 puntos
+    phi= 28°:   181 puntos
+    phi= 29°:   181 puntos
+    phi= 30°:   181 puntos
+    phi= 31°:   181 puntos
+    phi= 32°:   181 puntos
+    phi= 33°:   181 puntos
+    phi= 34°:   181 puntos
+    phi= 35°:   181 puntos
+    phi= 36°:   181 puntos
+    phi= 37°:   181 puntos
+    phi= 38°:   181 puntos
+    phi= 39°:   181 puntos
+    phi= 40°:   181 puntos
+    phi= 41°:   181 puntos
+    phi= 42°:   181 puntos
+    phi= 43°:   181 puntos
+    phi= 44°:   181 puntos
+    phi= 45°:   181 puntos
+    phi= 46°:   181 puntos
+    phi= 47°:   181 puntos
+    phi= 48°:   181 puntos
+    phi= 49°:   181 puntos
+    phi= 50°:   181 puntos
+    phi= 51°:   181 puntos
+    phi= 52°:   181 puntos
+    phi= 53°:   181 puntos
+    phi= 54°:   180 puntos
+    phi= 55°:   178 puntos
+    phi= 56°:   179 puntos
+    phi= 57°:   179 puntos
+    phi= 58°:   178 puntos
+    phi= 59°:   181 puntos
+    phi= 60°:   180 puntos
+    phi= 61°:   180 puntos
+    phi= 62°:   180 puntos
+    phi= 63°:   180 puntos
+    phi= 64°:   180 puntos
+    phi= 65°:   180 puntos
+    phi= 66°:   180 puntos
+    phi= 67°:   181 puntos
+    phi= 68°:   181 puntos
+    phi= 69°:   181 puntos
+    phi= 70°:   181 puntos
+    phi= 71°:   181 puntos
+    phi= 72°:   181 puntos
+    phi= 73°:   181 puntos
+    phi= 74°:   181 puntos
+    phi= 75°:   181 puntos
+    phi= 76°:   181 puntos
+    phi= 77°:   181 puntos
+    phi= 78°:   181 puntos
+    phi= 79°:   181 puntos
+    phi= 80°:   181 puntos
+    phi= 81°:   181 puntos
+    phi= 82°:   181 puntos
+    phi= 83°:   181 puntos
+    phi= 84°:   181 puntos
+    phi= 85°:   181 puntos
+    phi= 86°:   181 puntos
+    phi= 87°:   181 puntos
+    phi= 88°:   181 puntos
+    phi= 89°:   181 puntos
+    phi= 90°:   181 puntos
+    phi= 91°:   181 puntos
+    phi= 92°:   181 puntos
+    phi= 93°:   181 puntos
+    phi= 94°:   181 puntos
+    phi= 95°:   181 puntos
+    phi= 96°:   181 puntos
+    phi= 97°:   181 puntos
+    phi= 98°:   181 puntos
+    phi= 99°:   181 puntos
+    phi=100°:   181 puntos
+    phi=101°:   181 puntos
+    phi=102°:   181 puntos
+    phi=103°:   181 puntos
+    phi=104°:   181 puntos
+    phi=105°:   181 puntos
+    phi=106°:   181 puntos
+    phi=107°:   181 puntos
+    phi=108°:   181 puntos
+    phi=109°:   181 puntos
+    phi=110°:   181 puntos
+    phi=111°:   181 puntos
+    phi=112°:   181 puntos
+    phi=113°:   181 puntos
+    phi=114°:   181 puntos
+    phi=115°:   181 puntos
+    phi=116°:   181 puntos
+    phi=117°:   181 puntos
+    phi=118°:   181 puntos
+    phi=119°:   181 puntos
+    phi=120°:   181 puntos
+
+  LD19 (2D, phi=0°):
+    phi=  0°:    99 puntos

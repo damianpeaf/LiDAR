@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python data/scripts/analizar_datasets.py 2>&1)",
+      "Bash(python data/scripts/analizar_datasets.py > /c/Users/damia/tesis/LiDAR/data/scripts/output.txt 2>&1; cat /c/Users/damia/tesis/LiDAR/data/scripts/output.txt)",
+      "Bash(curl -s \"https://pub-4fbb31ff60a64dc0a85d1af67478682f.r2.dev/test-file/t3-210.json\" | head -c 400)",
+      "Bash(python data/scripts/convertir_y_subir.py)",
+      "Bash(npx wrangler:*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://pub-4fbb31ff60a64dc0a85d1af67478682f.r2.dev/datasets/dataset-01.json\" 2>&1)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://pub-4fbb31ff60a64dc0a85d1af67478682f.r2.dev/datasets/dataset-01.json\" && echo \"\" && curl -s \"https://pub-4fbb31ff60a64dc0a85d1af67478682f.r2.dev/datasets/dataset-01.json\" | head -c 200)",
+      "Bash(curl --ssl-no-revoke -s -o /dev/null -w \"%{http_code}\" \"https://pub-4fbb31ff60a64dc0a85d1af67478682f.r2.dev/datasets/dataset-01.json\")",
+      "Bash(python -c \"import urllib.request; r = urllib.request.urlopen\\('https://pub-4fbb31ff60a64dc0a85d1af67478682f.r2.dev/datasets/dataset-01.json'\\); print\\(r.status, r.read\\(200\\)\\)\")",
+      "Bash(python -c \"import urllib.request; r = urllib.request.urlopen\\('https://pub-4fbb31ff60a64dc0a85d1af67478682f.r2.dev/test-file/t3-210.json'\\); print\\(r.status, r.read\\(100\\)\\)\")",
+      "Bash(python -c \"import random; random.seed\\(42\\); print\\(random.randint\\(25,35\\), random.randint\\(25,35\\)\\)\")"
+    ]
+  }
+}
