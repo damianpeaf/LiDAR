@@ -82,8 +82,9 @@ uint64_t WS::BuildPacket(char* buffer, uint64_t bufferLen, enum WebSocketOpCode 
 
     // Ensure the buffer can handle the packet
     if((payloadLen + payloadIndex) > bufferLen) {
-        printf("WEBSOCKET BUFFER OVERFLOW \r\n");
-        return 1;
+        printf("WEBSOCKET BUFFER OVERFLOW payload=%llu header=%d buffer=%llu\r\n",
+               payloadLen, payloadIndex, bufferLen);
+        return 0;
     }
 
     // Copy in payload

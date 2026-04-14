@@ -30,10 +30,87 @@ uint8_t calc_crc8(const uint8_t *data, size_t len)
     return crc;
 }
 
+bool is_valid_lidar_frame(const uint8_t *frame)
+{
+    return frame[0] == HEADER && calc_crc8(frame, FRAME_SIZE - 1) == frame[FRAME_SIZE - 1];
+}
+
+LidarFrameParser::LidarFrameParser() : frame_{0}, bytes_collected_(0)
+{
+}
+
+void LidarFrameParser::reset()
+{
+    bytes_collected_ = 0;
+}
+
+void LidarFrameParser::resync_after_invalid_frame()
+{
+    size_t next_header_index = FRAME_SIZE;
+
+    for (size_t i = 1; i < FRAME_SIZE; i++)
+    {
+        if (frame_[i] == HEADER)
+        {
+            next_header_index = i;
+            break;
+        }
+    }
+
+    if (next_header_index == FRAME_SIZE)
+    {
+        reset();
+        return;
+    }
+
+    const size_t remaining_bytes = FRAME_SIZE - next_header_index;
+    for (size_t i = 0; i < remaining_bytes; i++)
+    {
+        frame_[i] = frame_[next_header_index + i];
+    }
+
+    bytes_collected_ = remaining_bytes;
+}
+
+bool LidarFrameParser::push_byte(uint8_t byte, uint8_t *complete_frame)
+{
+    if (bytes_collected_ == 0)
+    {
+        if (byte != HEADER)
+        {
+            return false;
+        }
+
+        frame_[bytes_collected_++] = byte;
+        return false;
+    }
+
+    frame_[bytes_collected_++] = byte;
+
+    if (bytes_collected_ < FRAME_SIZE)
+    {
+        return false;
+    }
+
+    if (is_valid_lidar_frame(frame_))
+    {
+        for (size_t i = 0; i < FRAME_SIZE; i++)
+        {
+            complete_frame[i] = frame_[i];
+        }
+
+        reset();
+        return true;
+    }
+
+    resync_after_invalid_frame();
+    return false;
+}
+
 int parse_points(const uint8_t *frame, LidarPoint *points)
 {
     // Verificar CRC
-    if (calc_crc8(frame, FRAME_SIZE - 1) != frame[FRAME_SIZE - 1])
+    if (!is_valid_lidar_frame(frame))
     {
         printf("CRC check failed\n");
         return 0;

@@ -26,6 +26,22 @@ class PicoScanApplication
 private:
     ServoController servo;
     TCPClient tcp_client;
+    LidarFrameParser lidar_parser;
+
+    bool read_next_lidar_frame(uint8_t *frame)
+    {
+        uint8_t byte;
+
+        while (uart_read_byte_timeout(UART_ID, &byte, 0))
+        {
+            if (lidar_parser.push_byte(byte, frame))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     void init_uart()
     {
@@ -33,7 +49,7 @@ private:
         gpio_set_function(UART_TX_PIN, GPIO_FUNC_UART);
         gpio_set_function(UART_RX_PIN, GPIO_FUNC_UART);
         uart_set_format(UART_ID, 8, 1, UART_PARITY_NONE);
-        uart_clear_buffer(UART_ID);
+        uart_init_rx_irq_ring_buffer(UART_ID);
     }
 
     bool init_wifi()
@@ -77,48 +93,51 @@ private:
         uint8_t frame[FRAME_SIZE];
         LidarPoint points[POINT_PER_PACK];
 
-        uint8_t byte;
-        if (uart_read_byte_timeout(UART_ID, &byte, 1000) && byte == HEADER)
+        if (read_next_lidar_frame(frame))
         {
-            frame[0] = HEADER;
-            if (uart_read_bytes_timeout(UART_ID, &frame[1], FRAME_SIZE - 1, 100))
+            int num_points = parse_points(frame, points);
+
+            if (!servo.is_ready_for_sampling())
             {
-                int num_points = parse_points(frame, points);
-                float current_servo_angle = servo.get_current_angle();
+                return;
+            }
 
-                for (int i = 0; i < num_points; i++)
+            float current_servo_angle = servo.get_current_angle();
+
+            for (int i = 0; i < num_points; i++)
+            {
+                if (points[i].distance <= 0 || points[i].distance > 12000 ||
+                    points[i].intensity < 0 || points[i].intensity > 255 ||
+                    points[i].angle < 0 || points[i].angle > 360)
                 {
-                    if (points[i].distance <= 0 || points[i].distance > 12000 ||
-                        points[i].intensity < 0 || points[i].intensity > 255 ||
-                        points[i].angle < 0 || points[i].angle > 360)
-                    {
-                        continue;
-                    }
-
-                    if (servo.check_complete_lidar_rotation(points[i].angle))
-                    {
-                        printf("Completed sample at servo angle %.1f\n", current_servo_angle);
-                    }
-
-                    tcp_client.add_point(points[i].angle, points[i].distance,
-                                         points[i].intensity, current_servo_angle);
+                    continue;
                 }
 
-                if (servo.should_move_servo())
+                if (servo.check_complete_lidar_rotation(points[i].angle))
                 {
-                    printf("Position complete! Moving servo to next position...\n");
-                    servo.move_to_next_position();
-                    sleep_ms(200);
+                    printf("Completed sample at servo angle %.1f\n", current_servo_angle);
                 }
+
+                tcp_client.add_point(points[i].angle, points[i].distance,
+                                     points[i].intensity, current_servo_angle);
+            }
+
+            if (servo.should_move_servo())
+            {
+                printf("Position complete! Moving servo to next position...\n");
+                servo.move_to_next_position();
             }
         }
     }
 
     void handle_data_transmission()
     {
-        if (tcp_client.get_points_count() >= BATCH_SIZE_TO_SEND)
+        while (tcp_client.get_points_count() >= BATCH_SIZE_TO_SEND)
         {
-            tcp_client.send_points_batch(BATCH_SIZE_TO_SEND);
+            if (!tcp_client.send_points_batch(BATCH_SIZE_TO_SEND))
+            {
+                break;
+            }
         }
     }
 
@@ -153,6 +172,7 @@ public:
     {
         while (true)
         {
+            servo.update();
             tcp_client.poll();
             handle_connection();
 

@@ -21,6 +21,22 @@ struct LidarPoint
 
 // Funciones de LIDAR
 uint8_t calc_crc8(const uint8_t *data, size_t len);
+bool is_valid_lidar_frame(const uint8_t *frame);
 int parse_points(const uint8_t *frame, LidarPoint *points);
+
+class LidarFrameParser
+{
+private:
+    uint8_t frame_[FRAME_SIZE];
+    size_t bytes_collected_;
+
+    void reset();
+    void resync_after_invalid_frame();
+
+public:
+    LidarFrameParser();
+
+    bool push_byte(uint8_t byte, uint8_t *complete_frame);
+};
 
 #endif // LIDAR_HPP

@@ -5,7 +5,7 @@
 ServoController::ServoController(uint pin) 
     : gpio_pin(pin), current_pulse(SERVO_MIN_PULSE), direction(1),
       samples_collected(0), points_in_sample(0), last_lidar_angle(-1.0f),
-      waiting_for_rotation(false)
+      waiting_for_rotation(false), state(State::Sampling), settle_deadline(nil_time)
 {
 }
 
@@ -21,6 +21,16 @@ void ServoController::init()
     pwm_set_enabled(slice_num, true);
     
     set_pulse_us(current_pulse);
+}
+
+void ServoController::update()
+{
+    if (state == State::Settling && time_reached(settle_deadline))
+    {
+        state = State::Sampling;
+        printf("Servo settled at %.1f degrees, resuming sampling...\n",
+               pulse_to_degrees(current_pulse));
+    }
 }
 
 float ServoController::pulse_to_degrees(uint pulse_us) const
@@ -51,13 +61,20 @@ void ServoController::move_to_next_position()
 
     set_pulse_us(current_pulse);
     reset_sampling_state();
+    state = State::Settling;
+    settle_deadline = make_timeout_time_ms(SERVO_SETTLE_MS);
 
-    printf("Servo moved to pulse %d (%.1f degrees), collecting samples...\n",
+    printf("Servo moved to pulse %d (%.1f degrees), settling...\n",
            current_pulse, pulse_to_degrees(current_pulse));
 }
 
 bool ServoController::check_complete_lidar_rotation(float current_angle)
 {
+    if (!is_ready_for_sampling())
+    {
+        return false;
+    }
+
     if (!waiting_for_rotation)
     {
         waiting_for_rotation = true;
@@ -74,11 +91,12 @@ bool ServoController::check_complete_lidar_rotation(float current_angle)
         if (angle_diff < 10.0f || angle_diff > 350.0f)
         {
             samples_collected++;
+            int completed_points = points_in_sample;
             points_in_sample = 0;
             waiting_for_rotation = false;
 
             printf("Sample %d completed at servo angle %.1f degrees (%d points)\n",
-                   samples_collected, pulse_to_degrees(current_pulse), points_in_sample);
+                   samples_collected, pulse_to_degrees(current_pulse), completed_points);
 
             return true;
         }
@@ -89,12 +107,17 @@ bool ServoController::check_complete_lidar_rotation(float current_angle)
 
 bool ServoController::should_move_servo() const
 {
-    return samples_collected >= SAMPLES_PER_POSITION;
+    return is_ready_for_sampling() && samples_collected >= SAMPLES_PER_POSITION;
 }
 
 float ServoController::get_current_angle() const
 {
     return pulse_to_degrees(current_pulse);
+}
+
+bool ServoController::is_ready_for_sampling() const
+{
+    return state == State::Sampling;
 }
 
 void ServoController::reset_sampling_state()

@@ -10,6 +10,8 @@
 #define TX_BUF_SIZE 2048       // Buffer completo para envío de datos
 #define RX_BUF_SIZE 512        // Buffer mínimo solo para handshake WebSocket
 #define MAX_QUEUED_POINTS 5000
+#define MAX_WS_FRAME_OVERHEAD 8
+#define MAX_TEXT_PAYLOAD_SIZE (TX_BUF_SIZE - MAX_WS_FRAME_OVERHEAD)
 
 typedef struct
 {
@@ -30,6 +32,8 @@ class TCPClient
 {
 private:
     LidarPointWithServo points[MAX_QUEUED_POINTS];
+    int points_head;
+    int points_tail;
     int points_count;
     struct tcp_pcb *tcp_pcb;
     ip_addr_t remote_addr;
@@ -47,6 +51,9 @@ private:
     static err_t tcp_client_recv_callback(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err);
     
     err_t close_connection();
+    int point_index_from_offset(int offset) const;
+    const LidarPointWithServo &queued_point_at(int offset) const;
+    void drop_queued_points(int count);
 
 public:
     TCPClient();

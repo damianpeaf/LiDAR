@@ -10,8 +10,8 @@
 // Referencia utilizada como punto de partida general
 // https://github.com/samjkent/picow-websocket
 
-TCPClient::TCPClient() : points_count(0), tcp_pcb(nullptr), tx_buffer_len(0),
-                         rx_buffer_len(0), connected(TCP_DISCONNECTED), handshake_complete(false)
+TCPClient::TCPClient() : points_head(0), points_tail(0), points_count(0), tcp_pcb(nullptr), tx_buffer_len(0),
+                          rx_buffer_len(0), connected(TCP_DISCONNECTED), handshake_complete(false)
 {
 }
 
@@ -164,10 +164,11 @@ void TCPClient::add_point(float angle, uint distance, uint intensity, float serv
 {
     if (points_count < MAX_QUEUED_POINTS)
     {
-        points[points_count].angle = angle;
-        points[points_count].distance = distance;
-        points[points_count].intensity = intensity;
-        points[points_count].servo_angle = servo_angle;
+        points[points_tail].angle = angle;
+        points[points_tail].distance = distance;
+        points[points_tail].intensity = intensity;
+        points[points_tail].servo_angle = servo_angle;
+        points_tail = (points_tail + 1) % MAX_QUEUED_POINTS;
         points_count++;
     }
     else
@@ -181,6 +182,35 @@ int TCPClient::get_points_count() const
     return points_count;
 }
 
+int TCPClient::point_index_from_offset(int offset) const
+{
+    return (points_head + offset) % MAX_QUEUED_POINTS;
+}
+
+const LidarPointWithServo &TCPClient::queued_point_at(int offset) const
+{
+    return points[point_index_from_offset(offset)];
+}
+
+void TCPClient::drop_queued_points(int count)
+{
+    if (count <= 0)
+    {
+        return;
+    }
+
+    if (count >= points_count)
+    {
+        points_head = 0;
+        points_tail = 0;
+        points_count = 0;
+        return;
+    }
+
+    points_head = point_index_from_offset(count);
+    points_count -= count;
+}
+
 bool TCPClient::is_handshake_complete() const
 {
     return handshake_complete;
@@ -188,36 +218,39 @@ bool TCPClient::is_handshake_complete() const
 
 bool TCPClient::send_points_batch(int batch_size)
 {
-    if (points_count < batch_size || !is_connected())
+    if (points_count < batch_size || !is_connected() || !is_handshake_complete())
         return false;
 
-    static char payload_buffer[TX_BUF_SIZE];
+    static char payload_buffer[MAX_TEXT_PAYLOAD_SIZE + 1];
     int payload_len = 0;
     int points_in_payload = 0;
     float last_servo_angle = -1.0f;
 
     for (int i = 0; i < points_count; i++)
     {
-        if (points[i].servo_angle != last_servo_angle)
-        {
-            int header_len = snprintf(payload_buffer + payload_len, TX_BUF_SIZE - payload_len, "%.1f|",
-                                      points[i].servo_angle);
-            if (payload_len + header_len >= TX_BUF_SIZE)
-            {
+        const LidarPointWithServo &point = queued_point_at(i);
 
-                printf("Payload buffer full 1, dropping point\n");
+        if (point.servo_angle != last_servo_angle)
+        {
+            int remaining_capacity = sizeof(payload_buffer) - payload_len;
+            int header_len = snprintf(payload_buffer + payload_len, remaining_capacity, "%.1f|",
+                                       point.servo_angle);
+            if (header_len < 0 || header_len >= remaining_capacity || payload_len + header_len > MAX_TEXT_PAYLOAD_SIZE)
+            {
+                printf("Payload chunk reached safe WebSocket limit; deferring remaining queued points to next send\n");
                 break;
             }
             payload_len += header_len;
-            last_servo_angle = points[i].servo_angle;
+            last_servo_angle = point.servo_angle;
         }
 
-        int len = snprintf(payload_buffer + payload_len, TX_BUF_SIZE - payload_len, "%u;%u;%.1f;",
-                           points[i].distance, points[i].intensity, points[i].angle);
+        int remaining_capacity = sizeof(payload_buffer) - payload_len;
+        int len = snprintf(payload_buffer + payload_len, remaining_capacity, "%u;%u;%.1f;",
+                           point.distance, point.intensity, point.angle);
 
-        if (payload_len + len >= TX_BUF_SIZE)
+        if (len < 0 || len >= remaining_capacity || payload_len + len > MAX_TEXT_PAYLOAD_SIZE)
         {
-            printf("Payload buffer full 2, dropping point\n");
+            printf("Payload chunk reached safe WebSocket limit; current point stays queued for the next send\n");
             break;
         }
         payload_len += len;
@@ -226,14 +259,23 @@ bool TCPClient::send_points_batch(int batch_size)
 
     if (points_in_payload > 0)
     {
+        err_t err = ERR_VAL;
         cyw43_arch_lwip_begin();
         tx_buffer_len = WS::BuildPacket((char *)tx_buffer, TX_BUF_SIZE, WEBSOCKET_OPCODE_TEXT,
                                         payload_buffer, payload_len, 1);
-        err_t err = tcp_write(tcp_pcb, tx_buffer, tx_buffer_len, TCP_WRITE_FLAG_COPY);
 
-        if (err == ERR_OK)
+        if (tx_buffer_len <= 0 || tx_buffer_len > TX_BUF_SIZE)
         {
-            tcp_output(tcp_pcb);
+            printf("WebSocket packet build failed, skipping tcp_write\n");
+        }
+        else
+        {
+            err = tcp_write(tcp_pcb, tx_buffer, tx_buffer_len, TCP_WRITE_FLAG_COPY);
+
+            if (err == ERR_OK)
+            {
+                tcp_output(tcp_pcb);
+            }
         }
         cyw43_arch_lwip_end();
 
@@ -241,11 +283,7 @@ bool TCPClient::send_points_batch(int batch_size)
         {
             int remaining = points_count - points_in_payload;
             printf("Sent %d points, %d remaining in buffer\n", points_in_payload, remaining);
-            if (remaining > 0)
-            {
-                memmove(points, &points[points_in_payload], remaining * sizeof(LidarPointWithServo));
-            }
-            points_count = remaining;
+            drop_queued_points(points_in_payload);
             return true;
         }
     }
