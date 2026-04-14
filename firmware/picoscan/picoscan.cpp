@@ -17,7 +17,7 @@
 #define UART_RX_PIN 9
 #define SERVO_PIN 15
 
-#define TCP_SERVER_IP "10.208.207.87"
+#define TCP_SERVER_IP "192.168.1.25"
 #define TCP_PORT 3000
 #define BATCH_SIZE_TO_SEND 100
 
@@ -38,8 +38,8 @@ private:
 
     bool init_wifi()
     {
-        const char ssid[] = "P1";
-        const char pass[] = "holamundo12346";
+        const char ssid[] = "CLARO1_8E2AAB";
+        const char pass[] = "841qlCREpc";
 
         if (!WiFiManager::initialize("UK"))
         {

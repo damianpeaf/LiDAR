@@ -32,7 +32,10 @@ export const useLidar = () => {
     setConnectionStatus('connecting');
 
     try {
-      const ws = new WebSocket('ws://localhost:3000');
+      const wsProtocol =
+        window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsHost = window.location.hostname || 'localhost';
+      const ws = new WebSocket(`${wsProtocol}//${wsHost}:3000`);
 
       ws.onopen = () => {
         console.log('Conectado al servidor WebSocket');
