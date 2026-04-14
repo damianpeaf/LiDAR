@@ -1,8 +1,17 @@
 #include "tcp_client.hpp"
 #include "ws.h"
-#include <cstdio>
-#include <cstring>
-#include <cstdlib>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <math.h>
+
+namespace
+{
+constexpr uint8_t kBinaryBatchMagic0 = 'P';
+constexpr uint8_t kBinaryBatchMagic1 = 'S';
+constexpr uint8_t kBinaryBatchVersion = 1;
+constexpr uint8_t kBinaryBatchFlags = 0;
+}
 
 // La secuencia de upgrade HTTP a WebSocket se armó tomando como referencia
 // ejemplos públicos de la comunidad para Pico W, en particular el trabajo de Sam Kent,
@@ -160,14 +169,42 @@ bool TCPClient::is_disconnected() const
     return connected == TCP_DISCONNECTED;
 }
 
+int16_t TCPClient::scale_angle_tenths(float angle)
+{
+    return static_cast<int16_t>(lroundf(angle * 10.0f));
+}
+
+bool TCPClient::append_u8(uint8_t *buffer, int capacity, int &offset, uint8_t value)
+{
+    if (offset >= capacity)
+    {
+        return false;
+    }
+
+    buffer[offset++] = value;
+    return true;
+}
+
+bool TCPClient::append_u16_le(uint8_t *buffer, int capacity, int &offset, uint16_t value)
+{
+    if (offset + 2 > capacity)
+    {
+        return false;
+    }
+
+    buffer[offset++] = static_cast<uint8_t>(value & 0xFF);
+    buffer[offset++] = static_cast<uint8_t>((value >> 8) & 0xFF);
+    return true;
+}
+
 void TCPClient::add_point(float angle, uint distance, uint intensity, float servo_angle)
 {
     if (points_count < MAX_QUEUED_POINTS)
     {
-        points[points_tail].angle = angle;
-        points[points_tail].distance = distance;
-        points[points_tail].intensity = intensity;
-        points[points_tail].servo_angle = servo_angle;
+        points[points_tail].pan_angle_tenths = static_cast<uint16_t>(scale_angle_tenths(angle));
+        points[points_tail].distance_mm = static_cast<uint16_t>(distance);
+        points[points_tail].intensity = static_cast<uint8_t>(intensity);
+        points[points_tail].servo_angle_tenths = scale_angle_tenths(servo_angle);
         points_tail = (points_tail + 1) % MAX_QUEUED_POINTS;
         points_count++;
     }
@@ -221,48 +258,53 @@ bool TCPClient::send_points_batch(int batch_size)
     if (points_count < batch_size || !is_connected() || !is_handshake_complete())
         return false;
 
-    static char payload_buffer[MAX_TEXT_PAYLOAD_SIZE + 1];
+    static uint8_t payload_buffer[MAX_BINARY_PAYLOAD_SIZE];
     int payload_len = 0;
     int points_in_payload = 0;
-    float last_servo_angle = -1.0f;
+
+    const LidarPointWithServo &first_point = queued_point_at(0);
+    const int16_t servo_angle_tenths = first_point.servo_angle_tenths;
+
+    if (!append_u8(payload_buffer, MAX_BINARY_PAYLOAD_SIZE, payload_len, kBinaryBatchMagic0) ||
+        !append_u8(payload_buffer, MAX_BINARY_PAYLOAD_SIZE, payload_len, kBinaryBatchMagic1) ||
+        !append_u8(payload_buffer, MAX_BINARY_PAYLOAD_SIZE, payload_len, kBinaryBatchVersion) ||
+        !append_u8(payload_buffer, MAX_BINARY_PAYLOAD_SIZE, payload_len, kBinaryBatchFlags) ||
+        !append_u16_le(payload_buffer, MAX_BINARY_PAYLOAD_SIZE, payload_len, static_cast<uint16_t>(servo_angle_tenths)) ||
+        !append_u16_le(payload_buffer, MAX_BINARY_PAYLOAD_SIZE, payload_len, 0))
+    {
+        printf("Binary payload header did not fit in buffer\n");
+        return false;
+    }
 
     for (int i = 0; i < points_count; i++)
     {
         const LidarPointWithServo &point = queued_point_at(i);
 
-        if (point.servo_angle != last_servo_angle)
+        if (point.servo_angle_tenths != servo_angle_tenths)
         {
-            int remaining_capacity = sizeof(payload_buffer) - payload_len;
-            int header_len = snprintf(payload_buffer + payload_len, remaining_capacity, "%.1f|",
-                                       point.servo_angle);
-            if (header_len < 0 || header_len >= remaining_capacity || payload_len + header_len > MAX_TEXT_PAYLOAD_SIZE)
-            {
-                printf("Payload chunk reached safe WebSocket limit; deferring remaining queued points to next send\n");
-                break;
-            }
-            payload_len += header_len;
-            last_servo_angle = point.servo_angle;
-        }
-
-        int remaining_capacity = sizeof(payload_buffer) - payload_len;
-        int len = snprintf(payload_buffer + payload_len, remaining_capacity, "%u;%u;%.1f;",
-                           point.distance, point.intensity, point.angle);
-
-        if (len < 0 || len >= remaining_capacity || payload_len + len > MAX_TEXT_PAYLOAD_SIZE)
-        {
-            printf("Payload chunk reached safe WebSocket limit; current point stays queued for the next send\n");
             break;
         }
-        payload_len += len;
+
+        if (!append_u16_le(payload_buffer, MAX_BINARY_PAYLOAD_SIZE, payload_len, point.distance_mm) ||
+            !append_u8(payload_buffer, MAX_BINARY_PAYLOAD_SIZE, payload_len, point.intensity) ||
+            !append_u16_le(payload_buffer, MAX_BINARY_PAYLOAD_SIZE, payload_len, point.pan_angle_tenths))
+        {
+            printf("Binary payload reached safe WebSocket limit; current point stays queued for the next send\n");
+            break;
+        }
+
         points_in_payload++;
     }
 
     if (points_in_payload > 0)
     {
+        payload_buffer[6] = static_cast<uint8_t>(points_in_payload & 0xFF);
+        payload_buffer[7] = static_cast<uint8_t>((points_in_payload >> 8) & 0xFF);
+
         err_t err = ERR_VAL;
         cyw43_arch_lwip_begin();
-        tx_buffer_len = WS::BuildPacket((char *)tx_buffer, TX_BUF_SIZE, WEBSOCKET_OPCODE_TEXT,
-                                        payload_buffer, payload_len, 1);
+        tx_buffer_len = WS::BuildPacket((char *)tx_buffer, TX_BUF_SIZE, WEBSOCKET_OPCODE_BINARY,
+                                        (char *)payload_buffer, payload_len, 1);
 
         if (tx_buffer_len <= 0 || tx_buffer_len > TX_BUF_SIZE)
         {
@@ -282,7 +324,10 @@ bool TCPClient::send_points_batch(int batch_size)
         if (err == ERR_OK)
         {
             int remaining = points_count - points_in_payload;
-            printf("Sent %d points, %d remaining in buffer\n", points_in_payload, remaining);
+            printf("Sent binary batch with %d points at servo %.1f, %d remaining in buffer\n",
+                   points_in_payload,
+                   static_cast<float>(servo_angle_tenths) / 10.0f,
+                   remaining);
             drop_queued_points(points_in_payload);
             return true;
         }

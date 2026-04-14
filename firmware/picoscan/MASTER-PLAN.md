@@ -9,7 +9,7 @@
 
 - **Estado**: activo
 - **Fuente de verdad**: este archivo
-- **Última actualización conceptual**: roadmap consolidado + avance de servo no bloqueante + UART RX por IRQ/ring buffer + parser incremental LiDAR + cola TX de puntos en ring buffer
+- **Última actualización conceptual**: roadmap consolidado + avance de servo no bloqueante + UART RX por IRQ/ring buffer + parser incremental LiDAR + cola TX de puntos en ring buffer + rollout inicial de batches binarios coordinados firmware/backend
 
 ---
 
@@ -272,10 +272,12 @@ Eliminar bloqueos gruesos y preparar un pipeline más sano.
 - [ ] definir política de backpressure
 
 #### 1.4 Payload y envío
-- [ ] documentar payload textual actual
-- [ ] diseñar payload binario
-- [ ] migrar ángulos a enteros escalados
-- [ ] adaptar backend receptor
+- [x] documentar payload textual actual
+- [x] diseñar payload binario
+- [x] migrar ángulos a enteros escalados
+- [x] adaptar backend receptor
+- [ ] validar interoperabilidad real firmware → backend con frames binarios
+- [ ] confirmar coexistencia rollout texto/binario con captura real
 
 #### 1.5 Buffering interno
 - [x] reemplazar cola lineal + `memmove` por ring buffer
@@ -433,6 +435,11 @@ Permitir uso real en diferentes escenarios de campo.
   - la cola interna de puntos pasó de arreglo lineal con `memmove()` a ring buffer, preservando la API pública de `TCPClient`;
   - al confirmar un envío exitoso solo se avanza el head lógico de la cola, evitando copias O(n) por batch;
   - el loop principal ahora intenta drenar múltiples batches consecutivos mientras haya backlog suficiente y `tcp_write()` siga aceptando datos.
+- migración incremental inicial a batches binarios coordinados implementada:
+  - el firmware ahora agrupa envíos por ángulo de servo y arma frames WebSocket binarios compactos;
+  - cada batch lleva un header explícito (`magic` + `version` + `servo_angle_tenths` + `point_count`) y luego records compactos por punto sin repetir inclinación;
+  - los ángulos transmitidos pasaron a escala entera en décimas para bajar costo de serialización y evitar padding implícito de structs C;
+  - el backend ahora detecta `bytes` vs `str` antes de `json.loads`, mantiene la ruta legacy de texto y parsea el nuevo formato binario hacia la misma representación interna/JSON existente para browser.
 
 ### En progreso
 - transición desde firmware lineal a firmware más desacoplado
@@ -441,7 +448,8 @@ Permitir uso real en diferentes escenarios de campo.
 - validar en hardware integridad de frames con RX por IRQ + ring buffer
 - validar en hardware la nueva estrategia de settling del servo
 - validar en hardware el comportamiento del nuevo ring buffer TX bajo backlog sostenido
-- migrar el streaming LiDAR de texto a frames binarios para bajar CPU/ancho de banda
+- validar en hardware el rollout de frames binarios y medir mejora real de CPU/ancho de banda
+- confirmar con captura real que el backend mantiene compatibilidad simultánea con payload legacy textual y nuevo payload binario
 - reducir `printf` del hot path y definir política clara de flush/backlog ante red inestable
 
 ---
@@ -484,7 +492,7 @@ Antes de pasar a la siguiente subetapa:
 Prioridad inmediata:
 
 - validar en hardware cuánto baja el backlog con la nueva cola TX por ring buffer y el drenaje multi-batch;
-- medir si el límite ahora pasa a ser CPU por serialización textual y/o capacidad real de `tcp_write()`;
-- recién después avanzar a payload binario y backpressure explícito con datos medidos.
+- medir si el límite ahora pasa a ser capacidad real de `tcp_write()` y/o presión del backlog tras sacar la serialización textual del camino principal;
+- si el batch binario valida bien en hardware, recién después avanzar a backpressure explícito con datos medidos.
 
 Ese es el siguiente paso con mejor relación **impacto / riesgo / alineación arquitectónica**.

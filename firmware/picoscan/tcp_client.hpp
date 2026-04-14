@@ -5,20 +5,23 @@
 #include "lwip/pbuf.h"
 #include "lwip/tcp.h"
 #include "lidar.hpp"
+#include <cstdint>
 
 // Optimización de memoria: buffers separados para TX/RX
 #define TX_BUF_SIZE 2048       // Buffer completo para envío de datos
 #define RX_BUF_SIZE 512        // Buffer mínimo solo para handshake WebSocket
 #define MAX_QUEUED_POINTS 5000
 #define MAX_WS_FRAME_OVERHEAD 8
-#define MAX_TEXT_PAYLOAD_SIZE (TX_BUF_SIZE - MAX_WS_FRAME_OVERHEAD)
+#define MAX_BINARY_PAYLOAD_SIZE (TX_BUF_SIZE - MAX_WS_FRAME_OVERHEAD)
+#define BINARY_BATCH_HEADER_SIZE 8
+#define BINARY_POINT_RECORD_SIZE 5
 
 typedef struct
 {
-    float angle;
-    uint distance;
-    uint intensity;
-    float servo_angle;
+    uint16_t pan_angle_tenths;
+    uint16_t distance_mm;
+    uint8_t intensity;
+    int16_t servo_angle_tenths;
 } LidarPointWithServo;
 
 enum ConnectionState
@@ -51,6 +54,9 @@ private:
     static err_t tcp_client_recv_callback(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err);
     
     err_t close_connection();
+    static int16_t scale_angle_tenths(float angle);
+    static bool append_u8(uint8_t *buffer, int capacity, int &offset, uint8_t value);
+    static bool append_u16_le(uint8_t *buffer, int capacity, int &offset, uint16_t value);
     int point_index_from_offset(int offset) const;
     const LidarPointWithServo &queued_point_at(int offset) const;
     void drop_queued_points(int count);
