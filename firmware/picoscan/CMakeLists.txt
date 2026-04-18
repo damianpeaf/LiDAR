@@ -44,7 +44,8 @@ add_executable(picoscan
     tcp_client.cpp
     wifi_manager.cpp
     device_state_manager.cpp
-    scan_controller.cpp)
+    scan_controller.cpp
+    config_store.cpp)
 
 pico_set_program_name(picoscan "picoscan")
 pico_set_program_version(picoscan "0.1")
@@ -59,6 +60,9 @@ target_link_libraries(picoscan
         hardware_uart
         hardware_pwm
         hardware_gpio
+        hardware_flash
+        hardware_sync
+        pico_flash
         pico_cyw43_arch_lwip_threadsafe_background)
 
 # Add the standard include files to the build

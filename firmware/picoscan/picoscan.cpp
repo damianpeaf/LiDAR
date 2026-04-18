@@ -4,6 +4,7 @@
 #include "hardware/gpio.h"
 
 #include "config.hpp"
+#include "config_store.hpp"
 #include "device_state_manager.hpp"
 #include "scan_controller.hpp"
 #include "servo_controller.hpp"
@@ -23,6 +24,7 @@ public:
     {
         stdio_init_all();
 
+        load_config();
         init_uart();
         servo_.init();
 
@@ -42,7 +44,7 @@ public:
         state_.transition_to(DeviceState::IDLE);
 
         ScanParams p;
-        p.batch_size = CFG_BATCH_SIZE;
+        p.batch_size = cfg_.batch_size;
         scan_.set_params(p);
 
         scan_.start();
@@ -72,10 +74,19 @@ public:
     }
 
 private:
+    PersistentConfig   cfg_;
     DeviceStateManager state_;
     ServoController    servo_;
     TCPClient          tcp_;
     ScanController     scan_;
+
+    void load_config()
+    {
+        if (!ConfigStore::load(cfg_)) {
+            printf("[config] using compiled-in defaults\n");
+            ConfigStore::fill_defaults(cfg_);
+        }
+    }
 
     void init_uart()
     {
@@ -88,11 +99,11 @@ private:
 
     bool init_wifi()
     {
-        if (!WiFiManager::initialize(CFG_WIFI_COUNTRY)) {
+        if (!WiFiManager::initialize(cfg_.wifi_country)) {
             printf("[wifi] init failed\n");
             return false;
         }
-        if (!WiFiManager::connect(CFG_WIFI_SSID, CFG_WIFI_PASS, 10000)) {
+        if (!WiFiManager::connect(cfg_.wifi_ssid, cfg_.wifi_pass, 10000)) {
             printf("[wifi] connect failed\n");
             return false;
         }
@@ -101,8 +112,8 @@ private:
 
     bool init_network()
     {
-        tcp_.set_server_address(CFG_TCP_IP, CFG_TCP_PORT);
-        printf("[net] connecting to %s:%u\n", CFG_TCP_IP, CFG_TCP_PORT);
+        tcp_.set_server_address(cfg_.tcp_ip, cfg_.tcp_port);
+        printf("[net] connecting to %s:%u\n", cfg_.tcp_ip, cfg_.tcp_port);
         return tcp_.connect_to_server() != ERR_ABRT;
     }
 };
