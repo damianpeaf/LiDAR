@@ -92,8 +92,12 @@ void ScanController::process_lidar_frame()
 
 void ScanController::handle_transmission()
 {
-    while (tcp_.get_points_count() >= params_.batch_size) {
+    int count = tcp_.get_points_count();
+
+    while (count >= params_.batch_size) {
         if (!tcp_.send_points_batch(params_.batch_size))
             break;
+
+        count = tcp_.get_points_count();
     }
 }

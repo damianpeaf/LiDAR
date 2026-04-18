@@ -39,6 +39,8 @@ public:
     bool initialize()
     {
         stdio_init_all();
+        // Espera hasta 3s a que el host abra el puerto serial USB
+        for (int i = 0; i < 30 && !stdio_usb_connected(); i++) sleep_ms(100);
 
         bool forced  = is_setup_forced();
         bool has_cfg = ConfigStore::load(cfg_);

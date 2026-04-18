@@ -2,6 +2,16 @@
 
 bool uart_read_byte_timeout(uart_inst_t *uart, uint8_t *byte, uint32_t timeout_ms)
 {
+    if (timeout_ms == 0)
+    {
+        if (uart_is_readable(uart))
+        {
+            *byte = uart_getc(uart);
+            return true;
+        }
+        return false;
+    }
+
     uint32_t start_time = to_ms_since_boot(get_absolute_time());
     while (to_ms_since_boot(get_absolute_time()) - start_time < timeout_ms)
     {
