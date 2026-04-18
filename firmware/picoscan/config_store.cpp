@@ -118,6 +118,17 @@ bool ConfigStore::erase()
     return true;
 }
 
+// ── seal ──────────────────────────────────────────────────────────────────────
+
+void ConfigStore::seal(PersistentConfig &cfg)
+{
+    cfg.magic   = MAGIC;
+    cfg.version = VERSION;
+    cfg.size    = sizeof(PersistentConfig);
+    size_t cover = sizeof(PersistentConfig) - sizeof(uint32_t);
+    cfg.checksum = crc32(&cfg, cover);
+}
+
 // ── Defaults de compilación ───────────────────────────────────────────────────
 
 void ConfigStore::fill_defaults(PersistentConfig &cfg)

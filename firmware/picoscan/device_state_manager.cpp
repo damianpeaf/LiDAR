@@ -20,6 +20,8 @@ const char* DeviceStateManager::name_of(DeviceState s)
 {
     switch (s) {
         case DeviceState::BOOT:             return "BOOT";
+        case DeviceState::SETUP_AP:         return "SETUP_AP";
+        case DeviceState::SETUP_PORTAL:     return "SETUP_PORTAL";
         case DeviceState::CONNECTING_WIFI:  return "CONNECTING_WIFI";
         case DeviceState::WIFI_READY:       return "WIFI_READY";
         case DeviceState::CONNECTING_CLOUD: return "CONNECTING_CLOUD";
@@ -38,4 +40,9 @@ bool DeviceStateManager::is_cloud_ready() const
 bool DeviceStateManager::is_scanning() const
 {
     return state_ == DeviceState::SCANNING;
+}
+
+bool DeviceStateManager::is_setup_mode() const
+{
+    return state_ == DeviceState::SETUP_AP || state_ == DeviceState::SETUP_PORTAL;
 }

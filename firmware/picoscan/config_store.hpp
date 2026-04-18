@@ -49,6 +49,9 @@ public:
 
     static bool is_valid(const PersistentConfig &cfg);
 
+    // Calcula y escribe checksum en cfg (llamar antes de save()).
+    static void seal(PersistentConfig &cfg);
+
 private:
     static uint32_t crc32(const void *data, size_t len);
 };

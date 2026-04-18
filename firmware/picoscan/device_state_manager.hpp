@@ -2,6 +2,8 @@
 
 enum class DeviceState {
     BOOT,
+    SETUP_AP,       // modo AP levantado, esperando conexión del usuario
+    SETUP_PORTAL,   // usuario conectado, portal HTTP activo
     CONNECTING_WIFI,
     WIFI_READY,
     CONNECTING_CLOUD,
@@ -20,6 +22,7 @@ public:
 
     bool is_cloud_ready() const;
     bool is_scanning() const;
+    bool is_setup_mode() const;
 
     static const char* name_of(DeviceState s);
 

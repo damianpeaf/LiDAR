@@ -45,7 +45,8 @@ add_executable(picoscan
     wifi_manager.cpp
     device_state_manager.cpp
     scan_controller.cpp
-    config_store.cpp)
+    config_store.cpp
+    setup_manager.cpp)
 
 pico_set_program_name(picoscan "picoscan")
 pico_set_program_version(picoscan "0.1")
@@ -62,6 +63,7 @@ target_link_libraries(picoscan
         hardware_gpio
         hardware_flash
         hardware_sync
+        hardware_watchdog
         pico_flash
         pico_cyw43_arch_lwip_threadsafe_background)
 
