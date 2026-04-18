@@ -28,6 +28,7 @@ public:
     ServoController(uint pin);
 
     void init();
+    void update();  // máquina de estados no-bloqueante (completar al integrar Etapa 1)
     float pulse_to_degrees(uint pulse_us) const;
     void set_pulse_us(uint pulse_us);
     void move_to_next_position();

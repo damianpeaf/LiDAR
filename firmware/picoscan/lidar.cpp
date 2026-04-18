@@ -72,3 +72,60 @@ int parse_points(const uint8_t *frame, LidarPoint *points)
 
     return valid_points;
 }
+
+bool is_valid_lidar_frame(const uint8_t *frame)
+{
+    return frame[0] == HEADER && calc_crc8(frame, FRAME_SIZE - 1) == frame[FRAME_SIZE - 1];
+}
+
+// ── LidarFrameParser ──────────────────────────────────────────────────────────
+
+bool LidarFrameParser::push_byte(uint8_t byte, uint8_t *out_frame)
+{
+    if (bytes_collected_ == 0 && byte != HEADER)
+        return false;
+
+    frame_[bytes_collected_++] = byte;
+
+    if (bytes_collected_ < FRAME_SIZE)
+        return false;
+
+    // Frame completo — validar
+    if (!is_valid_lidar_frame(frame_)) {
+        resync();
+        return false;
+    }
+
+    for (int i = 0; i < FRAME_SIZE; i++)
+        out_frame[i] = frame_[i];
+
+    bytes_collected_ = 0;
+    return true;
+}
+
+void LidarFrameParser::reset()
+{
+    bytes_collected_ = 0;
+}
+
+void LidarFrameParser::resync()
+{
+    // Busca el próximo HEADER dentro del buffer parcial (desde byte 1 en adelante)
+    int new_start = -1;
+    for (int i = 1; i < bytes_collected_; i++) {
+        if (frame_[i] == HEADER) {
+            new_start = i;
+            break;
+        }
+    }
+
+    if (new_start < 0) {
+        bytes_collected_ = 0;
+        return;
+    }
+
+    int remaining = bytes_collected_ - new_start;
+    for (int i = 0; i < remaining; i++)
+        frame_[i] = frame_[new_start + i];
+    bytes_collected_ = remaining;
+}
