@@ -219,6 +219,11 @@ int TCPClient::get_points_count() const
     return points_count;
 }
 
+bool TCPClient::is_point_queue_full() const
+{
+    return points_count >= MAX_QUEUED_POINTS;
+}
+
 int TCPClient::point_index_from_offset(int offset) const
 {
     return (points_head + offset) % MAX_QUEUED_POINTS;

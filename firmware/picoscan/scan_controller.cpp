@@ -3,7 +3,7 @@
 #include "uart_utils.hpp"
 
 ScanController::ScanController(ServoController& servo, TCPClient& tcp, uart_inst_t* uart)
-    : servo_(servo), tcp_(tcp), uart_(uart), state_(State::STOPPED)
+    : servo_(servo), tcp_(tcp), uart_(uart), state_(State::STOPPED), dropped_points_(0)
 {
 }
 
@@ -78,6 +78,13 @@ void ScanController::process_lidar_frame()
                     printf("[scan] sample complete at servo %.1f°\n", servo_angle);
                 }
 
+                if (tcp_.is_point_queue_full()) {
+                    dropped_points_++;
+                    if (dropped_points_ % BACKPRESSURE_LOG_INTERVAL == 1)
+                        printf("[scan] backpressure: %lu pts dropped\n",
+                               (unsigned long)dropped_points_);
+                    continue;
+                }
                 tcp_.add_point(points[i].angle, points[i].distance,
                                points[i].intensity, servo_angle);
             }

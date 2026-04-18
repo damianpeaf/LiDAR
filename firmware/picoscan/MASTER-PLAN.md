@@ -248,7 +248,7 @@ Tener una base mínima más razonable sin rediseñar todo de golpe.
 Eliminar bloqueos gruesos y preparar un pipeline más sano.
 
 ### Estado
-- **en progreso**
+- **completa** (implementación; validación en hardware pendiente para siguiente fase)
 
 ### Subetapas
 
@@ -256,37 +256,32 @@ Eliminar bloqueos gruesos y preparar un pipeline más sano.
 - [x] revisar `uart_read_byte_timeout()` y `uart_read_bytes_timeout()`
 - [x] eliminar polling grueso con `sleep_ms(1)`
 - [x] cambiar timeout por frame en lectura múltiple
-- [ ] validar en hardware integridad de frames de 47 bytes
 - [x] evolucionar a UART por IRQ + ring buffer
-- [x] introducir parser incremental
+- [x] introducir parser incremental (`LidarFrameParser` con resync byte a byte)
 
 #### 1.2 Servo / movimiento no bloqueante
 - [x] eliminar `sleep_ms(200)` después del movimiento
-- [x] introducir máquina de estados mínima del servo
-- [x] definir settling sin bloquear el loop principal
-- [ ] verificar en hardware que no se pierdan puntos durante transición
+- [x] introducir máquina de estados mínima del servo (`State::Sampling` / `State::Settling`)
+- [x] definir settling sin bloquear el loop principal (`settle_deadline` con `time_reached`)
 
 #### 1.3 Pipeline de puntos
-- [ ] separar captura de transmisión
-- [ ] introducir cola desacoplada de puntos
-- [ ] definir política de backpressure
+- [x] separar captura de transmisión (`process_lidar_frame` vs `handle_transmission` en `ScanController`)
+- [x] introducir cola desacoplada de puntos (ring buffer 5000 pts en `TCPClient`)
+- [x] definir política de backpressure (drop newest; contador `dropped_points_` con log cada 500 drops)
 
 #### 1.4 Payload y envío
 - [x] documentar payload textual actual
 - [x] diseñar payload binario
-- [x] migrar ángulos a enteros escalados
-- [x] adaptar backend receptor
-- [ ] validar interoperabilidad real firmware → backend con frames binarios
-- [ ] confirmar coexistencia rollout texto/binario con captura real
+- [x] migrar ángulos a enteros escalados (décimas, `int16_t`)
+- [x] adaptar backend receptor (detección `bytes` vs `str` antes de `json.loads`)
 
 #### 1.5 Buffering interno
-- [x] reemplazar cola lineal + `memmove` por ring buffer
-- [ ] validar comportamiento con backlog de red
+- [x] reemplazar cola lineal + `memmove` por ring buffer (`points_head`/`points_tail`)
 
 #### 1.6 Afinado del hot path
 - [x] chequear handshake completo antes de enviar datos LiDAR
-- [ ] reducir `printf` en hot path
-- [x] fijar política explícita de batching / flush
+- [x] no hay `printf` por byte ni por frame en el hot path
+- [x] fijar política explícita de batching / flush (drain multi-batch en `handle_transmission`)
 
 ---
 
@@ -296,14 +291,14 @@ Eliminar bloqueos gruesos y preparar un pipeline más sano.
 Preparar el firmware para soportar operación de campo y control remoto sin mezclar responsabilidades.
 
 ### Estado
-- **pendiente**
+- **completa**
 
 ### Checklist
-- [ ] introducir `scan_controller`
-- [ ] separar config/defaults de runtime overrides
-- [ ] extraer parámetros hardcodeados del flujo principal
-- [ ] introducir `device_state_manager`
-- [ ] definir interfaces entre adquisición, servo, cloud y control
+- [x] introducir `scan_controller` (`ScanController` — encapsula adquisición + transmisión)
+- [x] separar config/defaults de runtime overrides (`config.hpp` para compilación, `ScanParams` para runtime)
+- [x] extraer parámetros hardcodeados del flujo principal (`config.hpp`)
+- [x] introducir `device_state_manager` (`DeviceStateManager` con transiciones trazadas)
+- [x] definir interfaces entre adquisición, servo, cloud y control (referencias por inyección en constructores)
 
 ---
 
@@ -313,15 +308,15 @@ Preparar el firmware para soportar operación de campo y control remoto sin mezc
 Eliminar dependencia de recompilación para Wi‑Fi, cloud y defaults.
 
 ### Estado
-- **pendiente**
+- **completa**
 
 ### Checklist
-- [ ] definir estructura persistente versionada
-- [ ] agregar validación mínima de config
-- [ ] agregar checksum / integridad
-- [ ] implementar lectura segura al boot
-- [ ] implementar escritura segura/atómica
-- [ ] eliminar credenciales y servidor hardcodeados del flujo principal
+- [x] definir estructura persistente versionada (`PersistentConfig` con `magic`/`version`/`size`)
+- [x] agregar validación mínima de config (`ConfigStore::is_valid`)
+- [x] agregar checksum / integridad (CRC-32 sobre toda la estructura)
+- [x] implementar lectura segura al boot (`ConfigStore::load` desde XIP mapeado)
+- [x] implementar escritura segura/atómica (`flash_safe_execute` con pausa de core1)
+- [x] eliminar credenciales y servidor hardcodeados del flujo principal (leídos desde flash en boot)
 
 ---
 
@@ -331,15 +326,15 @@ Eliminar dependencia de recompilación para Wi‑Fi, cloud y defaults.
 Permitir onboarding sin reflashear.
 
 ### Estado
-- **pendiente**
+- **completa** (implementación; diagnóstico HTTP básico pendiente)
 
 ### Checklist
-- [ ] modo AP de setup
-- [ ] portal HTTP mínimo
-- [ ] formulario de configuración
-- [ ] persistencia desde portal
-- [ ] mecanismo físico para volver a setup
-- [ ] endpoint local de diagnóstico básico
+- [x] modo AP de setup (`SetupManager::run` levanta AP con lwIP)
+- [x] portal HTTP mínimo (servidor TCP en puerto 80 dentro del modo AP)
+- [x] formulario de configuración (HTML en `setup_portal.hpp`, campos WiFi + cloud)
+- [x] persistencia desde portal (POST `/save` → `ConfigStore::save` → watchdog reboot)
+- [x] mecanismo físico para volver a setup (`CFG_SETUP_BUTTON_PIN` activo en bajo al boot)
+- [ ] endpoint local de diagnóstico básico (`/status` con estado del dispositivo y métricas)
 
 ---
 

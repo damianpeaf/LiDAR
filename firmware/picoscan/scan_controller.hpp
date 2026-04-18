@@ -27,6 +27,8 @@ public:
     void set_params(const ScanParams& params);
 
 private:
+    static constexpr int BACKPRESSURE_LOG_INTERVAL = 500;
+
     enum class State { STOPPED, RUNNING, PAUSED };
 
     ServoController& servo_;
@@ -35,6 +37,7 @@ private:
     ScanParams params_;
     State state_;
     LidarFrameParser parser_;
+    uint32_t dropped_points_;
 
     void process_lidar_frame();
     void handle_transmission();

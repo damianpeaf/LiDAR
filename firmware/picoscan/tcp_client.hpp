@@ -71,6 +71,7 @@ public:
     
     void add_point(float angle, uint distance, uint intensity, float servo_angle);
     int get_points_count() const;
+    bool is_point_queue_full() const;
     bool is_handshake_complete() const;
     
     bool send_points_batch(int batch_size);
