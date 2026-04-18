@@ -1,4 +1,5 @@
 #include "servo_controller.hpp"
+#include "validation_metrics.hpp"
 #include <cstdio>
 #include <cmath>
 
@@ -28,6 +29,7 @@ void ServoController::update()
     if (state == State::Settling && time_reached(settle_deadline))
     {
         state = State::Sampling;
+        ValidationMetrics::note_servo_resume_sampling(pulse_to_degrees(current_pulse));
         printf("Servo settled at %.1f degrees, resuming sampling...\n",
                pulse_to_degrees(current_pulse));
     }
@@ -63,6 +65,7 @@ void ServoController::move_to_next_position()
     reset_sampling_state();
     state = State::Settling;
     settle_deadline = make_timeout_time_ms(SERVO_SETTLE_MS);
+    ValidationMetrics::note_servo_enter_settling(pulse_to_degrees(current_pulse));
 
     printf("Servo moved to pulse %d (%.1f degrees), settling...\n",
            current_pulse, pulse_to_degrees(current_pulse));
@@ -94,6 +97,10 @@ bool ServoController::check_complete_lidar_rotation(float current_angle)
             int completed_points = points_in_sample;
             points_in_sample = 0;
             waiting_for_rotation = false;
+            ValidationMetrics::note_servo_sample_complete(
+                pulse_to_degrees(current_pulse),
+                samples_collected,
+                completed_points);
 
             printf("Sample %d completed at servo angle %.1f degrees (%d points)\n",
                    samples_collected, pulse_to_degrees(current_pulse), completed_points);

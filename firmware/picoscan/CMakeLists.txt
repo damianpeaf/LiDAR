@@ -40,6 +40,7 @@ add_executable(picoscan
     ws.cpp 
     lidar.cpp 
     uart_utils.cpp
+    validation_metrics.cpp
     servo_controller.cpp
     tcp_client.cpp
     wifi_manager.cpp)
@@ -70,4 +71,3 @@ target_link_libraries(picoscan
         )
 
 pico_add_extra_outputs(picoscan)
-

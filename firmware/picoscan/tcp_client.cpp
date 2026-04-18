@@ -1,4 +1,5 @@
 #include "tcp_client.hpp"
+#include "validation_metrics.hpp"
 #include "ws.h"
 #include <stdio.h>
 #include <string.h>
@@ -40,6 +41,7 @@ err_t TCPClient::tcp_client_connected_callback(void *arg, struct tcp_pcb *tpcb, 
     if (err != ERR_OK)
     {
         printf("Connect failed %d\n", err);
+        ValidationMetrics::note_connection_state("connect_failed");
         return err;
     }
 
@@ -48,6 +50,11 @@ err_t TCPClient::tcp_client_connected_callback(void *arg, struct tcp_pcb *tpcb, 
 
     err = tcp_write(client->tcp_pcb, client->tx_buffer, client->tx_buffer_len, TCP_WRITE_FLAG_COPY);
     client->connected = TCP_CONNECTED;
+    if (err != ERR_OK)
+    {
+        ValidationMetrics::note_tcp_write_failure(err);
+    }
+    ValidationMetrics::note_connection_state("tcp_connected");
 
     printf("Connected\r\n");
     return ERR_OK;
@@ -62,6 +69,7 @@ void TCPClient::tcp_client_err_callback(void *arg, err_t err)
 {
     TCPClient *client = (TCPClient *)arg;
     client->connected = TCP_DISCONNECTED;
+    ValidationMetrics::note_connection_state("tcp_error");
     if (err != ERR_ABRT)
     {
         printf("tcp_client_err %d\n", err);
@@ -92,12 +100,16 @@ err_t TCPClient::tcp_client_recv_callback(void *arg, struct tcp_pcb *tpcb, struc
             {
                 found_switching_protocols = true;
                 client->handshake_complete = true;
+                ValidationMetrics::note_handshake_result(true);
+                ValidationMetrics::note_connection_state("ws_ready");
                 printf("WebSocket handshake completed\r\n");
             }
         }
 
         if (!found_switching_protocols)
         {
+            ValidationMetrics::note_handshake_result(false);
+            ValidationMetrics::note_connection_state("handshake_failed");
             printf("WebSocket handshake failed\r\n");
         }
     }
@@ -129,6 +141,7 @@ err_t TCPClient::close_connection()
     }
     connected = TCP_DISCONNECTED;
     handshake_complete = false;
+    ValidationMetrics::note_connection_state("tcp_disconnected");
     return err;
 }
 
@@ -153,6 +166,7 @@ err_t TCPClient::connect_to_server()
     handshake_complete = false;
     cyw43_arch_lwip_begin();
     connected = TCP_CONNECTING;
+    ValidationMetrics::note_connection_state("tcp_connecting");
     err_t err = tcp_connect(tcp_pcb, &remote_addr, 3000, tcp_client_connected_callback);
     cyw43_arch_lwip_end();
 
@@ -207,9 +221,12 @@ void TCPClient::add_point(float angle, uint distance, uint intensity, float serv
         points[points_tail].servo_angle_tenths = scale_angle_tenths(servo_angle);
         points_tail = (points_tail + 1) % MAX_QUEUED_POINTS;
         points_count++;
+        ValidationMetrics::note_point_enqueued();
+        ValidationMetrics::note_queue_backlog(static_cast<uint16_t>(points_count));
     }
     else
     {
+        ValidationMetrics::note_point_dropped();
         printf("Point buffer full, dropping point\n");
     }
 }
@@ -272,6 +289,7 @@ bool TCPClient::send_points_batch(int batch_size)
         !append_u16_le(payload_buffer, MAX_BINARY_PAYLOAD_SIZE, payload_len, static_cast<uint16_t>(servo_angle_tenths)) ||
         !append_u16_le(payload_buffer, MAX_BINARY_PAYLOAD_SIZE, payload_len, 0))
     {
+        ValidationMetrics::note_packet_build_failure();
         printf("Binary payload header did not fit in buffer\n");
         return false;
     }
@@ -308,6 +326,7 @@ bool TCPClient::send_points_batch(int batch_size)
 
         if (tx_buffer_len <= 0 || tx_buffer_len > TX_BUF_SIZE)
         {
+            ValidationMetrics::note_packet_build_failure();
             printf("WebSocket packet build failed, skipping tcp_write\n");
         }
         else
@@ -317,6 +336,10 @@ bool TCPClient::send_points_batch(int batch_size)
             if (err == ERR_OK)
             {
                 tcp_output(tcp_pcb);
+            }
+            else
+            {
+                ValidationMetrics::note_tcp_write_failure(err);
             }
         }
         cyw43_arch_lwip_end();
@@ -329,6 +352,9 @@ bool TCPClient::send_points_batch(int batch_size)
                    static_cast<float>(servo_angle_tenths) / 10.0f,
                    remaining);
             drop_queued_points(points_in_payload);
+            ValidationMetrics::note_batch_sent(
+                static_cast<uint16_t>(points_in_payload),
+                static_cast<uint16_t>(remaining));
             return true;
         }
     }

@@ -6,8 +6,10 @@ import websockets
 import redis.asyncio as redis
 import json
 import uuid
-import time
 from datetime import datetime
+from pathlib import Path
+
+from validation import ValidationRun
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 REDIS_KEY = "lidar_points"
@@ -19,10 +21,7 @@ BINARY_POINT_RECORD_SIZE = 5
 
 web_clients = set()
 redis_client = None
-
-# Variables para calcular puntos por segundo
-total_points_processed = 0
-start_time = None
+validation_run = ValidationRun(Path(__file__).resolve().parent / "validation_runs")
 
 
 async def init_redis():
@@ -172,8 +171,13 @@ async def store_points_in_redis(points):
             # Usar HSET para almacenar cada punto con su ID único
             await redis_client.hset(REDIS_KEY, point_id, json.dumps(point_data))
 
+        validation_run.increment("points_stored", len(points))
         print(f"Almacenados {len(points)} puntos en Redis")
     except Exception as e:
+        validation_run.increment("redis_store_failures")
+        validation_run.record_event(
+            "redis_store_failed", error=str(e), points=len(points)
+        )
         print(f"Error almacenando en Redis: {e}")
 
 
@@ -234,15 +238,13 @@ async def broadcast_to_web_clients(data, message_type="new_points"):
         for client in disconnected:
             web_clients.discard(client)
 
+        if disconnected:
+            validation_run.set_value("active_web_clients", len(web_clients))
+
 
 def process_sensor_points(sensor_points):
-    global total_points_processed, start_time
-
     if not sensor_points:
         return []
-
-    if start_time is None:
-        start_time = time.time()
 
     print(f"Puntos parseados: {len(sensor_points)}")
 
@@ -266,12 +268,7 @@ def process_sensor_points(sensor_points):
             }
         )
 
-    total_points_processed += len(processed_points)
-    elapsed_time = time.time() - start_time
-    points_per_second = total_points_processed / elapsed_time if elapsed_time > 0 else 0
-
     print(f"Puntos procesados: {len(processed_points)}")
-    print(f"Media puntos/s: {points_per_second:.2f}")
 
     return processed_points
 
@@ -282,6 +279,11 @@ async def handle_web_client_message(ws, data):
 
     if message_type == "register" and data.get("client") == "web":
         web_clients.add(ws)
+        validation_run.increment("web_clients_registered")
+        validation_run.set_value("active_web_clients", len(web_clients))
+        validation_run.record_event(
+            "web_client_registered", remote=str(ws.remote_address)
+        )
         print(f"Cliente web registrado: {ws.remote_address}")
 
         # Enviar estado actual al cliente recién conectado
@@ -305,16 +307,21 @@ async def handle_web_client_message(ws, data):
 
 
 async def server(ws):
+    validation_run.increment("clients_connected")
+    validation_run.increment("active_clients")
+    validation_run.record_event("client_connected", remote=str(ws.remote_address))
     print("Cliente conectado:", ws.remote_address)
     try:
         async for message in ws:
             try:
                 if isinstance(message, bytes):
+                    validation_run.increment("messages_binary")
                     print(
                         f"Cliente identificado como Pico (binario): {ws.remote_address}"
                     )
                     sensor_points = parse_binary_sensor_data(message)
                 elif isinstance(message, str):
+                    validation_run.increment("messages_text")
                     data = None
                     try:
                         data = json.loads(message)
@@ -326,6 +333,12 @@ async def server(ws):
                         continue
 
                     if ";" not in message:
+                        validation_run.increment("unknown_messages")
+                        validation_run.record_event(
+                            "unknown_text_message",
+                            remote=str(ws.remote_address),
+                            payload=message,
+                        )
                         print(f"Mensaje desconocido de {ws.remote_address}: {message}")
                         await ws.send("ERROR:UNKNOWN_FORMAT")
                         continue
@@ -335,22 +348,36 @@ async def server(ws):
                     )
                     sensor_points = parse_sensor_data(message)
                 else:
+                    validation_run.increment("unknown_messages")
                     print(
                         f"Tipo de mensaje desconocido de {ws.remote_address}: {type(message)}"
                     )
                     await ws.send("ERROR:UNKNOWN_FORMAT")
                     continue
 
+                validation_run.increment("points_parsed", len(sensor_points))
                 processed_points = process_sensor_points(sensor_points)
+                validation_run.increment("points_processed", len(processed_points))
 
                 if processed_points:
                     await store_points_in_redis(processed_points)
                     await broadcast_to_web_clients(processed_points, "new_points")
                 else:
+                    validation_run.increment("parse_failures")
+                    validation_run.record_event(
+                        "parse_failed",
+                        remote=str(ws.remote_address),
+                        message_kind="bytes" if isinstance(message, bytes) else "text",
+                    )
                     print("No se pudieron parsear datos válidos del sensor")
                     await ws.send("ERROR:PARSE_FAILED")
 
             except Exception as e:
+                validation_run.record_event(
+                    "message_processing_error",
+                    remote=str(ws.remote_address),
+                    error=str(e),
+                )
                 print(f"Error procesando mensaje: {e}")
                 try:
                     await ws.send(f"ERROR:{str(e)}")
@@ -363,6 +390,15 @@ async def server(ws):
         print(f"Error en el servidor: {e}")
     finally:
         web_clients.discard(ws)
+        validation_run.increment("clients_disconnected")
+        validation_run.set_value(
+            "active_clients",
+            max(int(validation_run.metrics.get("active_clients", 1)) - 1, 0),
+        )
+        validation_run.set_value("active_web_clients", len(web_clients))
+        validation_run.record_event(
+            "client_disconnected", remote=str(ws.remote_address)
+        )
         print(f"Cliente desconectado: {ws.remote_address}")
 
 
@@ -370,14 +406,30 @@ async def main():
     # Inicializar Redis
     await init_redis()
 
-    async with websockets.serve(server, "0.0.0.0", 3000):
-        print("Servidor iniciado en ws://0.0.0.0:3000")
-        print("Conexión a Redis establecida")
-        print("Esperando conexiones...")
-        print("- Clientes web deben enviar: {'type': 'register', 'client': 'web'}")
-        print("- Clientes web pueden limpiar con: {'type': 'clear_scan'}")
-        print("- Dispositivos Pico aceptan texto legado y batches binarios compactos")
-        await asyncio.Future()
+    snapshot_task = asyncio.create_task(validation_run.snapshot_loop())
+    validation_run.record_event("server_start", bind="0.0.0.0:3000")
+    validation_run.snapshot("start")
+
+    try:
+        async with websockets.serve(server, "0.0.0.0", 3000):
+            print("Servidor iniciado en ws://0.0.0.0:3000")
+            print("Conexión a Redis establecida")
+            print("Esperando conexiones...")
+            print("- Clientes web deben enviar: {'type': 'register', 'client': 'web'}")
+            print("- Clientes web pueden limpiar con: {'type': 'clear_scan'}")
+            print(
+                "- Dispositivos Pico aceptan texto legado y batches binarios compactos"
+            )
+            await asyncio.Future()
+    finally:
+        snapshot_task.cancel()
+        try:
+            await snapshot_task
+        except asyncio.CancelledError:
+            pass
+
+        validation_run.record_event("server_stop")
+        await validation_run.close()
 
 
 if __name__ == "__main__":

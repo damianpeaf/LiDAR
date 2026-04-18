@@ -36,6 +36,14 @@ python main.py
 Archivos relacionados disponibles en:
 
 - `../../data/services/lidar-server/performance_reports/`
+- `./validation_runs/` — snapshots periódicos, eventos y summary final de campañas de validación
+
+Cada arranque del servidor crea una corrida nueva bajo `validation_runs/run_<timestamp>_pid*/` con:
+
+- `metadata.json`
+- `events.jsonl`
+- `snapshots.jsonl`
+- `summary.json`
 
 ## Archivos clave
 

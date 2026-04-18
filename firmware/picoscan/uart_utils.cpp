@@ -12,14 +12,25 @@ struct UartRxRingBufferContext
     volatile uint16_t head;
     volatile uint16_t tail;
     volatile uint32_t overflow_count;
+    volatile uint16_t max_backlog;
     volatile bool initialized;
     uint8_t buffer[UART_RX_RING_BUFFER_SIZE];
 };
 
 UartRxRingBufferContext uart_contexts[] = {
-    {uart0, 0, 0, 0, false, {0}},
-    {uart1, 0, 0, 0, false, {0}},
+    {uart0, 0, 0, 0, 0, false, {0}},
+    {uart1, 0, 0, 0, 0, false, {0}},
 };
+
+uint16_t uart_ring_backlog(const UartRxRingBufferContext &context)
+{
+    if (context.head >= context.tail)
+    {
+        return static_cast<uint16_t>(context.head - context.tail);
+    }
+
+    return static_cast<uint16_t>(UART_RX_RING_BUFFER_SIZE - context.tail + context.head);
+}
 
 UartRxRingBufferContext *uart_get_context(uart_inst_t *uart)
 {
@@ -57,6 +68,12 @@ void uart_on_rx_irq(UartRxRingBufferContext &context)
 
         context.buffer[context.head] = byte;
         context.head = next_head;
+
+        const uint16_t backlog = uart_ring_backlog(context);
+        if (backlog > context.max_backlog)
+        {
+            context.max_backlog = backlog;
+        }
     }
 }
 
@@ -139,6 +156,7 @@ void uart_init_rx_irq_ring_buffer(uart_inst_t *uart)
     context->head = 0;
     context->tail = 0;
     context->overflow_count = 0;
+    context->max_backlog = 0;
     context->initialized = true;
     uart_drain_hardware_fifo(uart);
 
@@ -177,4 +195,22 @@ void uart_clear_buffer(uart_inst_t *uart)
     }
 
     uart_drain_hardware_fifo(uart);
+}
+
+uint32_t uart_get_rx_overflow_count(uart_inst_t *uart)
+{
+    UartRxRingBufferContext *context = uart_get_context(uart);
+    return context != nullptr ? context->overflow_count : 0;
+}
+
+uint16_t uart_get_rx_ring_backlog(uart_inst_t *uart)
+{
+    UartRxRingBufferContext *context = uart_get_context(uart);
+    return context != nullptr ? uart_ring_backlog(*context) : 0;
+}
+
+uint16_t uart_get_rx_ring_max_backlog(uart_inst_t *uart)
+{
+    UartRxRingBufferContext *context = uart_get_context(uart);
+    return context != nullptr ? context->max_backlog : 0;
 }

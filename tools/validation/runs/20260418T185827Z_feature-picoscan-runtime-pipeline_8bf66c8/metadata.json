@@ -1,0 +1,9 @@
+{
+  "baud": 230400,
+  "branch": "feature/picoscan-runtime-pipeline",
+  "commit": "8bf66c8",
+  "port": "/dev/tty.usbmodem1301",
+  "repo_root": "/Users/damianpeaf/tesis/LiDAR",
+  "run_dir": "/Users/damianpeaf/tesis/LiDAR/tools/validation/runs/20260418T185827Z_feature-picoscan-runtime-pipeline_8bf66c8",
+  "started_at": "2026-04-18T18:58:27.757674+00:00"
+}

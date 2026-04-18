@@ -30,3 +30,7 @@
 *.local
 *.env
 *.env.*
+
+# Validation artifacts
+# services/lidar-server/validation_runs/
+# tools/validation/runs/

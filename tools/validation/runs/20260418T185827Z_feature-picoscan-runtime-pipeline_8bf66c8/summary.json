@@ -1,0 +1,16 @@
+{
+  "baud": 230400,
+  "branch": "feature/picoscan-runtime-pipeline",
+  "captured_lines": 3094,
+  "commit": "8bf66c8",
+  "elapsed_from_first_data_seconds": 307.817,
+  "ended_at": "2026-04-18T19:04:02.709235+00:00",
+  "first_data_at": "2026-04-18T18:58:27.929344+00:00",
+  "json_parse_failures": 0,
+  "output_file": "/Users/damianpeaf/tesis/LiDAR/tools/validation/runs/20260418T185827Z_feature-picoscan-runtime-pipeline_8bf66c8/validation_stats.jsonl",
+  "port": "/dev/tty.usbmodem1301",
+  "repo_root": "/Users/damianpeaf/tesis/LiDAR",
+  "run_dir": "/Users/damianpeaf/tesis/LiDAR/tools/validation/runs/20260418T185827Z_feature-picoscan-runtime-pipeline_8bf66c8",
+  "started_at": "2026-04-18T18:58:27.757674+00:00",
+  "target_duration_seconds": 300
+}

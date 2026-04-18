@@ -1,5 +1,6 @@
 #include <cstdio>
 #include "lidar.hpp"
+#include "validation_metrics.hpp"
 
 // Tabla CRC (igual que en C)
 static const uint8_t CRC_TABLE[256] = {
@@ -46,6 +47,8 @@ void LidarFrameParser::reset()
 
 void LidarFrameParser::resync_after_invalid_frame()
 {
+    ValidationMetrics::note_lidar_parser_resync();
+
     size_t next_header_index = FRAME_SIZE;
 
     for (size_t i = 1; i < FRAME_SIZE; i++)
@@ -94,6 +97,8 @@ bool LidarFrameParser::push_byte(uint8_t byte, uint8_t *complete_frame)
 
     if (is_valid_lidar_frame(frame_))
     {
+        ValidationMetrics::note_lidar_frame_valid();
+
         for (size_t i = 0; i < FRAME_SIZE; i++)
         {
             complete_frame[i] = frame_[i];
@@ -103,6 +108,7 @@ bool LidarFrameParser::push_byte(uint8_t byte, uint8_t *complete_frame)
         return true;
     }
 
+    ValidationMetrics::note_lidar_frame_invalid();
     resync_after_invalid_frame();
     return false;
 }
@@ -113,6 +119,7 @@ int parse_points(const uint8_t *frame, LidarPoint *points)
     if (!is_valid_lidar_frame(frame))
     {
         printf("CRC check failed\n");
+        ValidationMetrics::note_lidar_parse_failure();
         return 0;
     }
 

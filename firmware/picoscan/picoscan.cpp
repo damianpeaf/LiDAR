@@ -9,6 +9,7 @@
 #include "uart_utils.hpp"
 #include "servo_controller.hpp"
 #include "tcp_client.hpp"
+#include "validation_metrics.hpp"
 #include "wifi_manager.hpp"
 
 #define UART_ID uart1
@@ -149,6 +150,7 @@ public:
     bool initialize()
     {
         stdio_init_all();
+        ValidationMetrics::init();
 
         init_uart();
         servo.init();
@@ -175,6 +177,13 @@ public:
             servo.update();
             tcp_client.poll();
             handle_connection();
+
+            ValidationMetrics::note_uart_ring_snapshot(
+                uart_get_rx_overflow_count(UART_ID),
+                uart_get_rx_ring_backlog(UART_ID),
+                uart_get_rx_ring_max_backlog(UART_ID));
+            ValidationMetrics::note_queue_backlog(static_cast<uint16_t>(tcp_client.get_points_count()));
+            ValidationMetrics::tick();
 
             if (!tcp_client.is_connected())
             {
