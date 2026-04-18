@@ -26,17 +26,17 @@ int parse_points(const uint8_t *frame, LidarPoint *points);
 
 class LidarFrameParser
 {
-private:
-    uint8_t frame_[FRAME_SIZE];
-    size_t bytes_collected_;
-
-    void reset();
-    void resync_after_invalid_frame();
-
 public:
     LidarFrameParser();
 
     bool push_byte(uint8_t byte, uint8_t *complete_frame);
+    void reset();
+
+private:
+    uint8_t frame_[FRAME_SIZE];
+    size_t bytes_collected_;
+
+    void resync_after_invalid_frame();
 };
 
 #endif // LIDAR_HPP

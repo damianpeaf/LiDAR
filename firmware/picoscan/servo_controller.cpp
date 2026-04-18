@@ -9,6 +9,8 @@ ServoController::ServoController(uint pin)
 {
 }
 
+void ServoController::update() {}
+
 void ServoController::init()
 {
     gpio_set_function(gpio_pin, GPIO_FUNC_PWM);

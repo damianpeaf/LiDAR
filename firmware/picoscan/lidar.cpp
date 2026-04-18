@@ -109,7 +109,6 @@ bool LidarFrameParser::push_byte(uint8_t byte, uint8_t *complete_frame)
 
 int parse_points(const uint8_t *frame, LidarPoint *points)
 {
-    // Verificar CRC
     if (!is_valid_lidar_frame(frame))
     {
         printf("CRC check failed\n");
