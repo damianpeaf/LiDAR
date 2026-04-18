@@ -30,3 +30,6 @@
 *.local
 *.env
 *.env.*
+
+# Editor and tool caches
+**/.cache/
