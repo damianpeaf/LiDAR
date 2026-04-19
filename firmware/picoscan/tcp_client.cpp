@@ -202,15 +202,8 @@ err_t TCPClient::tcp_client_recv_callback(void *arg, struct tcp_pcb *tpcb, struc
         pbuf_copy_partial(p, preview, sizeof(preview) - 1, 0);
         printf("[ws] response preview: %.200s\n", preview);
 
-        bool found_switching_protocols = false;
-        for (struct pbuf *q = p; q != NULL && !found_switching_protocols; q = q->next)
-        {
-            char *payload_str = (char *)q->payload;
-            if (strstr(payload_str, "101") != NULL && strstr(payload_str, "Switching Protocols") != NULL)
-            {
-                found_switching_protocols = true;
-            }
-        }
+        bool found_switching_protocols = (strstr(preview, "101") != NULL &&
+                                          strstr(preview, "Switching Protocols") != NULL);
 
         if (found_switching_protocols)
         {
@@ -227,31 +220,23 @@ err_t TCPClient::tcp_client_recv_callback(void *arg, struct tcp_pcb *tpcb, struc
     {
         printf("[auth] data received (%u bytes)\n", p->tot_len);
 
-        char preview[201] = {};
-        pbuf_copy_partial(p, preview, sizeof(preview) - 1, 0);
-        printf("[auth] raw: %.200s\n", preview);
+        // Copy into null-terminated buffer — strstr on raw pbuf payload is UB
+        char buf[256] = {};
+        uint16_t copy_len = p->tot_len < (uint16_t)(sizeof(buf) - 1)
+                            ? p->tot_len : (uint16_t)(sizeof(buf) - 1);
+        pbuf_copy_partial(p, buf, copy_len, 0);
+        printf("[auth] raw: %s\n", buf);
 
-        bool got_auth_ok = false;
-        bool got_auth_error = false;
+        bool got_auth_ok    = (strstr(buf, "auth_response") != NULL && strstr(buf, "true") != NULL);
+        bool got_auth_error = (strstr(buf, "invalid_device_password") != NULL);
 
-        for (struct pbuf *q = p; q != NULL; q = q->next)
-        {
-            char *payload_str = (char *)q->payload;
-            if (strstr(payload_str, "auth_response") != NULL && strstr(payload_str, "true") != NULL)
-            {
-                got_auth_ok = true;
-            }
-            if (strstr(payload_str, "invalid_device_password") != NULL)
-            {
-                got_auth_error = true;
-            }
-        }
+        printf("[auth] got_auth_ok=%d got_auth_error=%d\n", got_auth_ok, got_auth_error);
 
         if (got_auth_ok)
         {
             client->device_authenticated = true;
             client->auth_pending = false;
-            printf("[auth] ACCEPTED by server\n");
+            printf("[auth] ACCEPTED — device_authenticated=true\n");
         }
         if (got_auth_error)
         {
@@ -260,6 +245,10 @@ err_t TCPClient::tcp_client_recv_callback(void *arg, struct tcp_pcb *tpcb, struc
             printf("[auth] REJECTED — invalid_device_password\n");
             client->close_connection();
             return ERR_OK;
+        }
+        if (!got_auth_ok && !got_auth_error)
+        {
+            printf("[auth] WARNING: unexpected message (not auth_response nor error)\n");
         }
     }
 
@@ -492,7 +481,18 @@ bool TCPClient::send_device_auth()
 bool TCPClient::send_points_batch(int batch_size)
 {
     if (points_count < batch_size || !is_connected() || !is_handshake_complete() || !device_authenticated)
+    {
+        static uint32_t last_log = 0;
+        uint32_t now = to_ms_since_boot(get_absolute_time());
+        if (now - last_log > 5000)
+        {
+            last_log = now;
+            printf("[tx] blocked: pts=%d/%d connected=%d hs=%d auth=%d\n",
+                   points_count, batch_size,
+                   is_connected(), is_handshake_complete(), device_authenticated);
+        }
         return false;
+    }
 
     static uint8_t payload_buffer[MAX_BINARY_PAYLOAD_SIZE];
     int payload_len = 0;
