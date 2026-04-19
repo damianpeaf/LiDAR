@@ -4,13 +4,21 @@
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
+#include "config.hpp"
+#include "pico/time.h"
 
 namespace
 {
-constexpr uint8_t kBinaryBatchMagic0 = 'P';
-constexpr uint8_t kBinaryBatchMagic1 = 'S';
-constexpr uint8_t kBinaryBatchVersion = 1;
-constexpr uint8_t kBinaryBatchFlags = 0;
+    constexpr uint8_t kBinaryBatchMagic0 = 'P';
+    constexpr uint8_t kBinaryBatchMagic1 = 'S';
+    constexpr uint8_t kBinaryBatchVersion = 1;
+    constexpr uint8_t kBinaryBatchFlags = 0;
+
+#if CFG_DEBUG_SERIAL
+#define DBG_PRINTF(...) printf(__VA_ARGS__)
+#else
+#define DBG_PRINTF(...)
+#endif
 }
 
 // La secuencia de upgrade HTTP a WebSocket se armó tomando como referencia
@@ -20,19 +28,94 @@ constexpr uint8_t kBinaryBatchFlags = 0;
 // https://github.com/samjkent/picow-websocket
 
 TCPClient::TCPClient() : points_head(0), points_tail(0), points_count(0), tcp_pcb(nullptr), tx_buffer_len(0),
-                          rx_buffer_len(0), connected(TCP_DISCONNECTED), handshake_complete(false),
-                          device_authenticated(false), auth_pending(false), remote_port(3000)
+                         rx_buffer_len(0), connected(TCP_DISCONNECTED), handshake_complete(false),
+                         device_authenticated(false), auth_pending(false), remote_port(3000)
 {
     device_password[0] = '\0';
+    server_host_[0] = '\0';
+    memset(&remote_addr, 0, sizeof(remote_addr));
 }
 
-void TCPClient::set_server_address(const char *ip, uint16_t port)
+void TCPClient::set_server_address(const char *host, uint16_t port)
 {
-    ip4addr_aton(ip, &remote_addr);
+    strncpy(server_host_, host, sizeof(server_host_) - 1);
+    server_host_[sizeof(server_host_) - 1] = '\0';
     remote_port = port;
+    memset(&remote_addr, 0, sizeof(remote_addr));
 }
 
-void TCPClient::set_device_password(const char* password)
+namespace
+{
+    struct DnsWait
+    {
+        ip_addr_t addr;
+        volatile bool done;
+        volatile bool ok;
+    };
+
+    void dns_found_cb(const char *name, const ip_addr_t *addr, void *arg)
+    {
+        DnsWait *w = (DnsWait *)arg;
+        if (addr)
+        {
+            w->addr = *addr;
+            w->ok = true;
+        }
+        w->done = true;
+    }
+}
+
+bool TCPClient::resolve_hostname_blocking(const char *host)
+{
+    DnsWait w = {};
+    w.done = false;
+    w.ok = false;
+
+    printf("[dns] resolving '%s'...\n", host);
+
+    cyw43_arch_lwip_begin();
+    err_t err = dns_gethostbyname(host, &w.addr, dns_found_cb, &w);
+    cyw43_arch_lwip_end();
+
+    if (err == ERR_OK)
+    {
+        // Already cached
+        w.ok = true;
+        w.done = true;
+    }
+    else if (err != ERR_INPROGRESS)
+    {
+        printf("[dns] error %d resolving '%s'\n", err, host);
+        return false;
+    }
+
+    uint32_t start = to_ms_since_boot(get_absolute_time());
+    while (!w.done)
+    {
+        cyw43_arch_poll();
+        sleep_ms(10);
+        if (to_ms_since_boot(get_absolute_time()) - start > 10000)
+        {
+            printf("[dns] timeout resolving '%s'\n", host);
+            return false;
+        }
+    }
+
+    if (!w.ok)
+    {
+        printf("[dns] failed to resolve '%s'\n", host);
+        return false;
+    }
+
+    char ip_str[16];
+    ip4addr_ntoa_r(ip_2_ip4(&w.addr), ip_str, sizeof(ip_str));
+    printf("[dns] '%s' -> %s\n", host, ip_str);
+
+    remote_addr = w.addr;
+    return true;
+}
+
+void TCPClient::set_device_password(const char *password)
 {
     if (!password)
     {
@@ -54,29 +137,31 @@ err_t TCPClient::tcp_client_connected_callback(void *arg, struct tcp_pcb *tpcb, 
     TCPClient *client = (TCPClient *)arg;
     if (err != ERR_OK)
     {
-        printf("Connect failed %d\n", err);
+        printf("[net] TCP connect failed: %d\n", err);
         return err;
     }
 
     char host_ip[16];
     ip4addr_ntoa_r(ip_2_ip4(&client->remote_addr), host_ip, sizeof(host_ip));
+    printf("[ws] TCP connected to %s:%u, sending WebSocket upgrade\n", host_ip, client->remote_port);
 
     client->tx_buffer_len = snprintf((char *)client->tx_buffer,
-                                    TX_BUF_SIZE,
-                                    "GET / HTTP/1.1\r\n"
-                                    "Host: %s:%u\r\n"
-                                    "Upgrade: websocket\r\n"
-                                    "Connection: Upgrade\r\n"
-                                    "Sec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==\r\n"
-                                    "Sec-WebSocket-Protocol: chat, superchat\r\n"
-                                    "Sec-WebSocket-Version: 13\r\n\r\n",
-                                    host_ip,
-                                    client->remote_port);
+                                     TX_BUF_SIZE,
+                                     "GET / HTTP/1.1\r\n"
+                                     "Host: %s:%u\r\n"
+                                     "Upgrade: websocket\r\n"
+                                     "Connection: Upgrade\r\n"
+                                     "Sec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==\r\n"
+                                     "Sec-WebSocket-Protocol: chat, superchat\r\n"
+                                     "Sec-WebSocket-Version: 13\r\n\r\n",
+                                     host_ip,
+                                     client->remote_port);
 
     err = tcp_write(client->tcp_pcb, client->tx_buffer, client->tx_buffer_len, TCP_WRITE_FLAG_COPY);
-    client->connected = TCP_CONNECTED;
+    if (err != ERR_OK)
+        printf("[ws] tcp_write upgrade failed: %d\n", err);
 
-    printf("Connected\r\n");
+    client->connected = TCP_CONNECTED;
     return ERR_OK;
 }
 
@@ -110,7 +195,13 @@ err_t TCPClient::tcp_client_recv_callback(void *arg, struct tcp_pcb *tpcb, struc
     // Solo procesamos la respuesta del handshake WebSocket inicial
     if (!client->handshake_complete && p->tot_len > 0)
     {
-        // Buscar "101 Switching Protocols" para confirmar handshake exitoso
+        printf("[ws] handshake response received (%u bytes)\n", p->tot_len);
+
+        // Print first 200 chars of response for debugging
+        char preview[201] = {};
+        pbuf_copy_partial(p, preview, sizeof(preview) - 1, 0);
+        printf("[ws] response preview: %.200s\n", preview);
+
         bool found_switching_protocols = false;
         for (struct pbuf *q = p; q != NULL && !found_switching_protocols; q = q->next)
         {
@@ -118,19 +209,28 @@ err_t TCPClient::tcp_client_recv_callback(void *arg, struct tcp_pcb *tpcb, struc
             if (strstr(payload_str, "101") != NULL && strstr(payload_str, "Switching Protocols") != NULL)
             {
                 found_switching_protocols = true;
-                client->handshake_complete = true;
-                printf("WebSocket handshake completed\r\n");
-                client->send_device_auth();
             }
         }
 
-        if (!found_switching_protocols)
+        if (found_switching_protocols)
         {
-            printf("WebSocket handshake failed\r\n");
+            client->handshake_complete = true;
+            printf("[ws] handshake OK — sending auth\n");
+            client->send_device_auth();
+        }
+        else
+        {
+            printf("[ws] handshake FAILED — no '101 Switching Protocols' in response\n");
         }
     }
     else if (p->tot_len > 0)
     {
+        printf("[auth] data received (%u bytes)\n", p->tot_len);
+
+        char preview[201] = {};
+        pbuf_copy_partial(p, preview, sizeof(preview) - 1, 0);
+        printf("[auth] raw: %.200s\n", preview);
+
         bool got_auth_ok = false;
         bool got_auth_error = false;
 
@@ -151,13 +251,13 @@ err_t TCPClient::tcp_client_recv_callback(void *arg, struct tcp_pcb *tpcb, struc
         {
             client->device_authenticated = true;
             client->auth_pending = false;
-            printf("Device auth accepted by server\r\n");
+            printf("[auth] ACCEPTED by server\n");
         }
         if (got_auth_error)
         {
             client->device_authenticated = false;
             client->auth_pending = false;
-            printf("Device auth rejected by server\r\n");
+            printf("[auth] REJECTED — invalid_device_password\n");
             client->close_connection();
             return ERR_OK;
         }
@@ -200,9 +300,21 @@ err_t TCPClient::connect_to_server()
     if (connected != TCP_DISCONNECTED)
         return ERR_OK;
 
+    // Resolve hostname if not a dotted-decimal IP
+    if (!ip4addr_aton(server_host_, ip_2_ip4(&remote_addr)))
+    {
+        if (!resolve_hostname_blocking(server_host_))
+            return ERR_ABRT;
+    }
+
+    char ip_str[16];
+    ip4addr_ntoa_r(ip_2_ip4(&remote_addr), ip_str, sizeof(ip_str));
+    printf("[net] TCP connect -> %s:%u\n", ip_str, remote_port);
+
     tcp_pcb = tcp_new_ip_type(IP_GET_TYPE(&remote_addr));
     if (!tcp_pcb)
     {
+        printf("[net] tcp_new failed\n");
         return ERR_ABRT;
     }
 
@@ -218,8 +330,11 @@ err_t TCPClient::connect_to_server()
     connected = TCP_CONNECTING;
     device_authenticated = false;
     auth_pending = false;
-    err_t err = tcp_connect(tcp_pcb, &remote_addr, 3000, tcp_client_connected_callback);
+    err_t err = tcp_connect(tcp_pcb, &remote_addr, remote_port, tcp_client_connected_callback);
     cyw43_arch_lwip_end();
+
+    if (err != ERR_OK)
+        printf("[net] tcp_connect returned %d\n", err);
 
     return err;
 }
@@ -332,9 +447,11 @@ bool TCPClient::send_device_auth()
 
     if (device_password[0] == '\0')
     {
-        printf("Device password missing; cannot auth\r\n");
+        printf("[auth] ERROR: device_password is empty — cannot authenticate\n");
         return false;
     }
+
+    printf("[auth] sending auth with password='%s'\n", device_password);
 
     char auth_json[128];
     int auth_len = snprintf(auth_json, sizeof(auth_json),
@@ -342,7 +459,7 @@ bool TCPClient::send_device_auth()
                             device_password);
     if (auth_len <= 0 || auth_len >= (int)sizeof(auth_json))
     {
-        printf("Auth payload build failed\r\n");
+        printf("[auth] payload build failed (len=%d)\n", auth_len);
         return false;
     }
 
@@ -364,11 +481,11 @@ bool TCPClient::send_device_auth()
     if (err == ERR_OK)
     {
         auth_pending = true;
-        printf("Device auth message sent\r\n");
+        printf("[auth] message sent OK (ws frame %d bytes)\n", tx_buffer_len);
         return true;
     }
 
-    printf("Device auth send failed: %d\r\n", err);
+    printf("[auth] tcp_write failed: %d\n", err);
     return false;
 }
 
@@ -408,7 +525,7 @@ bool TCPClient::send_points_batch(int batch_size)
             !append_u8(payload_buffer, MAX_BINARY_PAYLOAD_SIZE, payload_len, point.intensity) ||
             !append_u16_le(payload_buffer, MAX_BINARY_PAYLOAD_SIZE, payload_len, point.pan_angle_tenths))
         {
-            printf("Binary payload reached safe WebSocket limit; current point stays queued for the next send\n");
+            // printf("Binary payload reached safe WebSocket limit; current point stays queued for the next send\n");
             break;
         }
 
@@ -443,10 +560,10 @@ bool TCPClient::send_points_batch(int batch_size)
         if (err == ERR_OK)
         {
             int remaining = points_count - points_in_payload;
-            printf("Sent binary batch with %d points at servo %.1f, %d remaining in buffer\n",
-                   points_in_payload,
-                   static_cast<float>(servo_angle_tenths) / 10.0f,
-                   remaining);
+            DBG_PRINTF("[dbg][tx] sent batch points=%d servo=%.1f remaining=%d\r\n",
+                       points_in_payload,
+                       static_cast<float>(servo_angle_tenths) / 10.0f,
+                       remaining);
             drop_queued_points(points_in_payload);
             return true;
         }

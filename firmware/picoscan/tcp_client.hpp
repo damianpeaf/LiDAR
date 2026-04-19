@@ -4,6 +4,7 @@
 #include "pico/cyw43_arch.h"
 #include "lwip/pbuf.h"
 #include "lwip/tcp.h"
+#include "lwip/dns.h"
 #include "lidar.hpp"
 #include <cstdint>
 
@@ -40,6 +41,7 @@ private:
     int points_count;
     struct tcp_pcb *tcp_pcb;
     ip_addr_t remote_addr;
+    char server_host_[64];
     uint8_t tx_buffer[TX_BUF_SIZE];     // Buffer para envío
     uint8_t rx_buffer[RX_BUF_SIZE];     // Buffer mínimo para handshake
     int tx_buffer_len;
@@ -50,6 +52,8 @@ private:
     bool auth_pending;
     uint16_t remote_port;
     char device_password[64];
+
+    bool resolve_hostname_blocking(const char *host);
     
     static err_t tcp_client_sent_callback(void *arg, struct tcp_pcb *tpcb, u16_t len);
     static err_t tcp_client_connected_callback(void *arg, struct tcp_pcb *tpcb, err_t err);

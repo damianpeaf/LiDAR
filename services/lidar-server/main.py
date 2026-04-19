@@ -523,7 +523,9 @@ async def handle_web_client_message(ws, data):
 
 
 async def server(ws):
-    print("Cliente conectado:", ws.remote_address)
+    addr = ws.remote_address
+    print(f"[WS] nueva conexión de {addr}")
+    print(f"[WS] DEVICE_PASSWORD configurado: {'SI (' + str(len(DEVICE_PASSWORD)) + ' chars)' if DEVICE_PASSWORD else 'NO (vacío!)'}")
     client_type = None
 
     try:
@@ -531,6 +533,7 @@ async def server(ws):
             try:
                 if client_type is None:
                     if isinstance(message, bytes):
+                        print(f"[WS] {addr} envió binario sin autenticarse ({len(message)} bytes) — rechazando")
                         await ws.send(
                             json.dumps(
                                 {
@@ -544,13 +547,17 @@ async def server(ws):
                         break
 
                     if not isinstance(message, str):
+                        print(f"[WS] {addr} tipo de mensaje inesperado: {type(message)}")
                         await ws.close(code=1003, reason="unsupported_message_type")
                         break
+
+                    print(f"[WS] {addr} mensaje texto (sin auth): {message[:200]!r}")
 
                     data = None
                     try:
                         data = json.loads(message)
                     except json.JSONDecodeError:
+                        print(f"[WS] {addr} no es JSON válido — rechazando")
                         await ws.send(
                             json.dumps(
                                 {
@@ -564,8 +571,12 @@ async def server(ws):
                         break
 
                     if data.get("type") == "auth":
-                        password = data.get("password")
+                        password = data.get("password", "")
+                        print(f"[AUTH] intento de auth desde {addr}")
+                        print(f"[AUTH] password recibida: {password!r} ({len(password)} chars)")
+                        print(f"[AUTH] password esperada: {DEVICE_PASSWORD!r} ({len(DEVICE_PASSWORD)} chars)")
                         if not DEVICE_PASSWORD or password != DEVICE_PASSWORD:
+                            print(f"[AUTH] RECHAZADO desde {addr}")
                             await ws.send(
                                 json.dumps(
                                     {
@@ -582,7 +593,7 @@ async def server(ws):
                         await ws.send(
                             json.dumps({"type": "auth_response", "success": True})
                         )
-                        print(f"Dispositivo autenticado: {ws.remote_address}")
+                        print(f"[AUTH] dispositivo AUTENTICADO: {addr}")
                         continue
 
                     if data.get("type") == "register" and data.get("client") == "web":
@@ -645,9 +656,7 @@ async def server(ws):
                     break
 
                 if client_type == "device" and isinstance(message, bytes):
-                    print(
-                        f"Cliente identificado como Pico (binario): {ws.remote_address}"
-                    )
+                    print(f"[DATA] binario de {addr} ({len(message)} bytes)")
                     sensor_points = parse_binary_sensor_data(message)
 
                 elif client_type == "device" and isinstance(message, str):
@@ -706,27 +715,30 @@ async def server(ws):
                     pass
 
     except websockets.exceptions.ConnectionClosedError as e:
-        print(f"Conexión cerrada: {e}")
+        print(f"[WS] conexión cerrada ({addr}): {e}")
     except Exception as e:
-        print(f"Error en el servidor: {e}")
+        print(f"[WS] error en handler ({addr}): {e}")
     finally:
         web_clients.discard(ws)
         authenticated_web_clients.pop(ws, None)
-        print(f"Cliente desconectado: {ws.remote_address}")
+        print(f"[WS] desconectado: {addr} (era: {client_type or 'sin identificar'})")
 
 
 async def main():
-    # Inicializar Redis
     await init_redis()
 
     port = int(os.getenv("PORT", "3000"))
+
+    print("=" * 60)
+    print(f"[SERVER] LiDAR WebSocket Server arrancando en puerto {port}")
+    print(f"[SERVER] DEVICE_PASSWORD: {'configurada (' + str(len(DEVICE_PASSWORD)) + ' chars)' if DEVICE_PASSWORD else '!!! NO CONFIGURADA — auth fallará !!!'}")
+    print(f"[SERVER] SUPABASE_URL: {'configurada' if SUPABASE_URL else 'no configurada'}")
+    print(f"[SERVER] R2_BUCKET: {R2_BUCKET or '(no configurado)'}")
+    print("=" * 60)
+
     async with websockets.serve(server, "0.0.0.0", port):
-        print(f"Servidor iniciado en ws://0.0.0.0:{port}")
-        print("Conexión a Redis establecida")
-        print("Esperando conexiones...")
-        print("- Clientes web deben enviar: {'type': 'register', 'client': 'web'}")
-        print("- Clientes web pueden limpiar con: {'type': 'clear_scan'}")
-        print("- Dispositivos Pico aceptan texto legado y batches binarios compactos")
+        print(f"[SERVER] escuchando en ws://0.0.0.0:{port}")
+        print("[SERVER] Protocolo: primer mensaje debe ser auth (device) o register (web)")
         await asyncio.Future()
 
 

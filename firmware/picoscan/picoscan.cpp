@@ -146,10 +146,22 @@ private:
 
     bool init_network()
     {
+        printf("[config] wifi_ssid   = '%s'\n", cfg_.wifi_ssid);
+        printf("[config] tcp_host    = '%s'\n", cfg_.tcp_ip);
+        printf("[config] tcp_port    = %u\n",   cfg_.tcp_port);
+        printf("[config] device_pass = '%s'\n", cfg_.device_pass);
+        printf("[config] batch_size  = %u\n",   cfg_.batch_size);
+
         tcp_.set_server_address(cfg_.tcp_ip, cfg_.tcp_port);
+#ifdef CFG_DEBUG_FORCE_PASS
+        printf("[config] OVERRIDE device_pass -> '%s'\n", CFG_DEBUG_FORCE_PASS);
+        tcp_.set_device_password(CFG_DEBUG_FORCE_PASS);
+#else
         tcp_.set_device_password(cfg_.device_pass);
-        printf("[net] connecting to %s:%u\n", cfg_.tcp_ip, cfg_.tcp_port);
-        return tcp_.connect_to_server() != ERR_ABRT;
+#endif
+        err_t err = tcp_.connect_to_server();
+        printf("[net] connect_to_server() returned %d\n", err);
+        return err != ERR_ABRT;
     }
 };
 

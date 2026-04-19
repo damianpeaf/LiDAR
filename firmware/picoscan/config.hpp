@@ -23,3 +23,10 @@
 #define CFG_DEFAULT_TCP_PORT      3000
 #define CFG_DEFAULT_BATCH_SIZE    100
 #define CFG_DEFAULT_DEVICE_PASS   "PicoRemote2026!"
+
+// Debug serial logs para primera puesta en marcha
+#define CFG_DEBUG_SERIAL          1
+
+// Opcional: forzar contraseña de dispositivo en compilación (ignora la de flash).
+// Descomenta para probar sin tener que re-flashear la config.
+// #define CFG_DEBUG_FORCE_PASS   "PicoRemote2026"
