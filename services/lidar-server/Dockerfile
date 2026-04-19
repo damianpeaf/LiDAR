@@ -11,4 +11,6 @@ COPY services/lidar-server/main.py ./main.py
 
 EXPOSE 3000
 
-CMD ["python", "main.py"]
+ENV PYTHONUNBUFFERED=1
+
+CMD ["python", "-u", "main.py"]
