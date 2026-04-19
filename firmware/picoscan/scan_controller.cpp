@@ -54,8 +54,15 @@ void ScanController::update()
     if (state_ != State::RUNNING)
         return;
 
-    process_lidar_frame();
     handle_transmission();
+
+    // Control de caudal: si la cola está alta, priorizamos drenarla antes de
+    // seguir metiendo puntos desde UART.
+    const int queued = tcp_.get_points_count();
+    if (queued >= 4000)
+        return;
+
+    process_lidar_frame();
 }
 
 void ScanController::process_lidar_frame()
@@ -101,10 +108,10 @@ void ScanController::handle_transmission()
 {
     int count = tcp_.get_points_count();
 
-    while (count >= params_.batch_size) {
-        if (!tcp_.send_points_batch(params_.batch_size))
-            break;
+    if (count < params_.batch_size)
+        return;
 
-        count = tcp_.get_points_count();
-    }
+    // Evita inundar lwIP enviando muchos frames seguidos en el mismo tick.
+    // Un batch por update mantiene el flujo estable y reduce ERR_MEM/tcp_output=-1.
+    tcp_.send_points_batch(params_.batch_size);
 }

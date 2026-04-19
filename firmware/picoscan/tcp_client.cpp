@@ -13,6 +13,12 @@ namespace
     constexpr uint8_t kBinaryBatchMagic1 = 'S';
     constexpr uint8_t kBinaryBatchVersion = 1;
     constexpr uint8_t kBinaryBatchFlags = 0;
+    // Forzamos payload <=125 bytes para evitar el path de longitud extendida (126/127)
+    // del builder WS actual, que es el sospechoso principal de frames inválidos.
+    constexpr int kTargetMaxWsFrameBytes = 120;
+    constexpr uint32_t kMinSendIntervalMs = 60;
+    constexpr uint16_t kMinTcpSndbufBytes = 300;
+    constexpr uint16_t kMaxTcpSendQueueLen = 3;
 
 #if CFG_DEBUG_SERIAL
 #define DBG_PRINTF(...) printf(__VA_ARGS__)
@@ -159,7 +165,19 @@ err_t TCPClient::tcp_client_connected_callback(void *arg, struct tcp_pcb *tpcb, 
 
     err = tcp_write(client->tcp_pcb, client->tx_buffer, client->tx_buffer_len, TCP_WRITE_FLAG_COPY);
     if (err != ERR_OK)
+    {
         printf("[ws] tcp_write upgrade failed: %d\n", err);
+        client->close_connection();
+        return err;
+    }
+
+    err = tcp_output(client->tcp_pcb);
+    if (err != ERR_OK)
+    {
+        printf("[ws] tcp_output upgrade failed: %d\n", err);
+        client->close_connection();
+        return err;
+    }
 
     client->connected = TCP_CONNECTED;
     return ERR_OK;
@@ -208,8 +226,9 @@ err_t TCPClient::tcp_client_recv_callback(void *arg, struct tcp_pcb *tpcb, struc
         if (found_switching_protocols)
         {
             client->handshake_complete = true;
-            printf("[ws] handshake OK — sending auth\n");
-            client->send_device_auth();
+            client->device_authenticated = true;
+            client->auth_pending = false;
+            printf("[ws] handshake OK — device auth bypass enabled\n");
         }
         else
         {
@@ -218,38 +237,7 @@ err_t TCPClient::tcp_client_recv_callback(void *arg, struct tcp_pcb *tpcb, struc
     }
     else if (p->tot_len > 0)
     {
-        printf("[auth] data received (%u bytes)\n", p->tot_len);
-
-        // Copy into null-terminated buffer — strstr on raw pbuf payload is UB
-        char buf[256] = {};
-        uint16_t copy_len = p->tot_len < (uint16_t)(sizeof(buf) - 1)
-                            ? p->tot_len : (uint16_t)(sizeof(buf) - 1);
-        pbuf_copy_partial(p, buf, copy_len, 0);
-        printf("[auth] raw: %s\n", buf);
-
-        bool got_auth_ok    = (strstr(buf, "auth_response") != NULL && strstr(buf, "true") != NULL);
-        bool got_auth_error = (strstr(buf, "invalid_device_password") != NULL);
-
-        printf("[auth] got_auth_ok=%d got_auth_error=%d\n", got_auth_ok, got_auth_error);
-
-        if (got_auth_ok)
-        {
-            client->device_authenticated = true;
-            client->auth_pending = false;
-            printf("[auth] ACCEPTED — device_authenticated=true\n");
-        }
-        if (got_auth_error)
-        {
-            client->device_authenticated = false;
-            client->auth_pending = false;
-            printf("[auth] REJECTED — invalid_device_password\n");
-            client->close_connection();
-            return ERR_OK;
-        }
-        if (!got_auth_ok && !got_auth_error)
-        {
-            printf("[auth] WARNING: unexpected message (not auth_response nor error)\n");
-        }
+        printf("[ws] data received after handshake (%u bytes)\n", p->tot_len);
     }
 
     // Confirmamos la recepción pero no almacenamos los datos
@@ -460,10 +448,10 @@ bool TCPClient::send_device_auth()
     if (tx_buffer_len > 0 && tx_buffer_len <= TX_BUF_SIZE)
     {
         err = tcp_write(tcp_pcb, tx_buffer, tx_buffer_len, TCP_WRITE_FLAG_COPY);
-        if (err == ERR_OK)
-        {
-            tcp_output(tcp_pcb);
-        }
+                if (err == ERR_OK)
+                {
+                    err = tcp_output(tcp_pcb);
+                }
     }
     cyw43_arch_lwip_end();
 
@@ -495,8 +483,28 @@ bool TCPClient::send_points_batch(int batch_size)
     }
 
     static uint8_t payload_buffer[MAX_BINARY_PAYLOAD_SIZE];
+    static uint32_t last_send_ms = 0;
     int payload_len = 0;
     int points_in_payload = 0;
+    const int max_payload_len = (kTargetMaxWsFrameBytes > 8) ? (kTargetMaxWsFrameBytes - 8) : (MAX_BINARY_PAYLOAD_SIZE - 8);
+
+    uint32_t now_ms = to_ms_since_boot(get_absolute_time());
+    if (now_ms - last_send_ms < kMinSendIntervalMs)
+    {
+        return false;
+    }
+
+    uint16_t sndbuf = 0;
+    uint16_t sndq = 0;
+    cyw43_arch_lwip_begin();
+    sndbuf = tcp_sndbuf(tcp_pcb);
+    sndq = tcp_sndqueuelen(tcp_pcb);
+    cyw43_arch_lwip_end();
+
+    if (sndbuf < kMinTcpSndbufBytes || sndq > kMaxTcpSendQueueLen)
+    {
+        return false;
+    }
 
     const LidarPointWithServo &first_point = queued_point_at(0);
     const int16_t servo_angle_tenths = first_point.servo_angle_tenths;
@@ -517,6 +525,11 @@ bool TCPClient::send_points_batch(int batch_size)
         const LidarPointWithServo &point = queued_point_at(i);
 
         if (point.servo_angle_tenths != servo_angle_tenths)
+        {
+            break;
+        }
+
+        if (payload_len + BINARY_POINT_RECORD_SIZE > max_payload_len)
         {
             break;
         }
@@ -564,8 +577,18 @@ bool TCPClient::send_points_batch(int batch_size)
                        points_in_payload,
                        static_cast<float>(servo_angle_tenths) / 10.0f,
                        remaining);
+            last_send_ms = now_ms;
             drop_queued_points(points_in_payload);
             return true;
+        }
+
+        printf("[tx] send failed: tcp_output=%d payload=%d ws_frame=%d queued=%d\n",
+               err, payload_len, tx_buffer_len, points_count);
+
+        if (err == ERR_CONN || err == ERR_CLSD || err == ERR_ABRT)
+        {
+            printf("[tx] closing connection due to send error=%d\n", err);
+            close_connection();
         }
     }
 

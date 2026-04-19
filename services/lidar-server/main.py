@@ -525,29 +525,42 @@ async def handle_web_client_message(ws, data):
 async def server(ws):
     addr = ws.remote_address
     print(f"[WS] nueva conexión de {addr}")
-    print(f"[WS] DEVICE_PASSWORD configurado: {'SI (' + str(len(DEVICE_PASSWORD)) + ' chars)' if DEVICE_PASSWORD else 'NO (vacío!)'}")
+    print(
+        f"[WS] DEVICE_PASSWORD configurado: {'SI (' + str(len(DEVICE_PASSWORD)) + ' chars)' if DEVICE_PASSWORD else 'NO (vacío!)'}"
+    )
     client_type = None
 
     try:
         async for message in ws:
             try:
+                msg_type = "bytes" if isinstance(message, bytes) else "str"
+                print(
+                    f"[MSG] {addr} tipo={msg_type} len={len(message)} client_type={client_type}"
+                )
+
                 if client_type is None:
                     if isinstance(message, bytes):
-                        print(f"[WS] {addr} envió binario sin autenticarse ({len(message)} bytes) — rechazando")
-                        await ws.send(
-                            json.dumps(
-                                {
-                                    "type": "error",
-                                    "code": 401,
-                                    "reason": "device_auth_required",
-                                }
-                            )
+                        client_type = "device"
+                        print(
+                            f"[AUTH] auth de dispositivo omitida: {addr} (primer mensaje binario)"
                         )
-                        await ws.close(code=1008, reason="device_auth_required")
-                        break
+                        print(f"[DATA] binario de {addr} ({len(message)} bytes)")
+                        sensor_points = parse_binary_sensor_data(message)
+
+                        processed_points = process_sensor_points(sensor_points)
+                        if processed_points:
+                            await store_points_in_redis(processed_points)
+                            await broadcast_to_web_clients(
+                                processed_points, "new_points"
+                            )
+                        else:
+                            print("No se pudieron parsear datos válidos del sensor")
+                        continue
 
                     if not isinstance(message, str):
-                        print(f"[WS] {addr} tipo de mensaje inesperado: {type(message)}")
+                        print(
+                            f"[WS] {addr} tipo de mensaje inesperado: {type(message)}"
+                        )
                         await ws.close(code=1003, reason="unsupported_message_type")
                         break
 
@@ -570,33 +583,26 @@ async def server(ws):
                         await ws.close(code=1008, reason="auth_message_required")
                         break
 
-                    if data.get("type") == "auth":
+                    if data and data.get("type") == "auth":
                         password = data.get("password", "")
                         print(f"[AUTH] intento de auth desde {addr}")
-                        print(f"[AUTH] password recibida: {password!r} ({len(password)} chars)")
-                        print(f"[AUTH] password esperada: {DEVICE_PASSWORD!r} ({len(DEVICE_PASSWORD)} chars)")
-                        if not DEVICE_PASSWORD or password != DEVICE_PASSWORD:
-                            print(f"[AUTH] RECHAZADO desde {addr}")
-                            await ws.send(
-                                json.dumps(
-                                    {
-                                        "type": "error",
-                                        "code": 401,
-                                        "reason": "invalid_device_password",
-                                    }
-                                )
-                            )
-                            await ws.close(code=1008, reason="invalid_device_password")
-                            break
-
+                        print(
+                            f"[AUTH] password recibida: {password!r} ({len(password)} chars)"
+                        )
                         client_type = "device"
                         await ws.send(
                             json.dumps({"type": "auth_response", "success": True})
                         )
-                        print(f"[AUTH] dispositivo AUTENTICADO: {addr}")
+                        print(
+                            f"[AUTH] dispositivo AUTENTICADO (sin validar password): {addr}"
+                        )
                         continue
 
-                    if data.get("type") == "register" and data.get("client") == "web":
+                    if (
+                        data
+                        and data.get("type") == "register"
+                        and data.get("client") == "web"
+                    ):
                         token = data.get("token") or extract_ws_token(ws)
                         user = await verify_supabase_jwt(token)
                         if not user:
@@ -643,17 +649,11 @@ async def server(ws):
                         )
                         continue
 
-                    await ws.send(
-                        json.dumps(
-                            {
-                                "type": "error",
-                                "code": 401,
-                                "reason": "unknown_client_type",
-                            }
-                        )
+                    # Si no es JSON de registro web ni auth, lo tratamos como dispositivo texto legado
+                    client_type = "device"
+                    print(
+                        f"[AUTH] auth de dispositivo omitida: {addr} (texto no-JSON o formato legado)"
                     )
-                    await ws.close(code=1008, reason="unknown_client_type")
-                    break
 
                 if client_type == "device" and isinstance(message, bytes):
                     print(f"[DATA] binario de {addr} ({len(message)} bytes)")
@@ -731,14 +731,20 @@ async def main():
 
     print("=" * 60)
     print(f"[SERVER] LiDAR WebSocket Server arrancando en puerto {port}")
-    print(f"[SERVER] DEVICE_PASSWORD: {'configurada (' + str(len(DEVICE_PASSWORD)) + ' chars)' if DEVICE_PASSWORD else '!!! NO CONFIGURADA — auth fallará !!!'}")
-    print(f"[SERVER] SUPABASE_URL: {'configurada' if SUPABASE_URL else 'no configurada'}")
+    print(
+        f"[SERVER] DEVICE_PASSWORD: {'configurada (' + str(len(DEVICE_PASSWORD)) + ' chars)' if DEVICE_PASSWORD else 'no configurada'}"
+    )
+    print(
+        f"[SERVER] SUPABASE_URL: {'configurada' if SUPABASE_URL else 'no configurada'}"
+    )
     print(f"[SERVER] R2_BUCKET: {R2_BUCKET or '(no configurado)'}")
     print("=" * 60)
 
-    async with websockets.serve(server, "0.0.0.0", port, ping_interval=None, ping_timeout=None):
+    async with websockets.serve(
+        server, "0.0.0.0", port, ping_interval=None, ping_timeout=None
+    ):
         print(f"[SERVER] escuchando en ws://0.0.0.0:{port}")
-        print("[SERVER] Protocolo: primer mensaje debe ser auth (device) o register (web)")
+        print("[SERVER] Protocolo: device sin auth requerida; web con register+token")
         await asyncio.Future()
 
 
