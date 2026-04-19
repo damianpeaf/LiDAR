@@ -8,9 +8,23 @@ import json
 import uuid
 import time
 from datetime import datetime
+from urllib.parse import parse_qs, urlparse
+
+import boto3
+import httpx
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 REDIS_KEY = "lidar_points"
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
+DEVICE_PASSWORD = os.getenv("DEVICE_PASSWORD", "")
+
+R2_BUCKET = os.getenv("R2_BUCKET", "")
+R2_ENDPOINT = os.getenv("R2_ENDPOINT", "")
+R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID", "")
+R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY", "")
+R2_PUBLIC_BASE_URL = os.getenv("R2_PUBLIC_BASE_URL", "")
 
 BINARY_BATCH_MAGIC = b"PS"
 BINARY_BATCH_VERSION = 1
@@ -18,17 +32,191 @@ BINARY_BATCH_HEADER_SIZE = 8
 BINARY_POINT_RECORD_SIZE = 5
 
 web_clients = set()
+authenticated_web_clients = {}
 redis_client = None
 
 # Variables para calcular puntos por segundo
 total_points_processed = 0
 start_time = None
+scan_started_at = None
 
 
 async def init_redis():
     global redis_client
     redis_client = redis.from_url(REDIS_URL, decode_responses=True)
     print("Conexión a Redis establecida")
+
+
+def get_ws_path(ws):
+    if hasattr(ws, "request") and ws.request and hasattr(ws.request, "path"):
+        return ws.request.path
+    return getattr(ws, "path", "")
+
+
+def extract_ws_token(ws):
+    raw_path = get_ws_path(ws)
+    if not raw_path:
+        return None
+
+    query = urlparse(raw_path).query
+    if not query:
+        return None
+
+    token = parse_qs(query).get("token", [None])[0]
+    return token
+
+
+async def verify_supabase_jwt(token):
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY or not token:
+        return None
+
+    headers = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {token}",
+    }
+
+    url = f"{SUPABASE_URL}/auth/v1/user"
+    timeout = httpx.Timeout(5.0)
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.get(url, headers=headers)
+        if response.status_code != 200:
+            return None
+        return response.json()
+    except Exception as e:
+        print(f"Error validando JWT con Supabase: {e}")
+        return None
+
+
+async def get_profile_status(user_id):
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        return None
+
+    headers = {
+        "apikey": SUPABASE_SERVICE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+    }
+    params = {
+        "select": "status",
+        "id": f"eq.{user_id}",
+        "limit": 1,
+    }
+
+    url = f"{SUPABASE_URL}/rest/v1/profiles"
+    timeout = httpx.Timeout(5.0)
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.get(url, headers=headers, params=params)
+        if response.status_code != 200:
+            return None
+        payload = response.json()
+        if not payload:
+            return None
+        return payload[0].get("status")
+    except Exception as e:
+        print(f"Error consultando perfil en Supabase: {e}")
+        return None
+
+
+def get_scan_stats():
+    duration_seconds = 0.0
+    points_per_second = 0.0
+
+    if scan_started_at is not None:
+        duration_seconds = max(0.0, time.time() - scan_started_at)
+
+    if duration_seconds > 0:
+        points_per_second = total_points_processed / duration_seconds
+
+    return {
+        "point_count": total_points_processed,
+        "points_per_second": points_per_second,
+        "duration_seconds": duration_seconds,
+    }
+
+
+def build_r2_url(key):
+    base = R2_PUBLIC_BASE_URL.rstrip("/")
+    if base:
+        return f"{base}/{key}"
+    return f"r2://{R2_BUCKET}/{key}"
+
+
+def upload_json_to_r2_blocking(bucket, key, payload):
+    client = boto3.client(
+        "s3",
+        endpoint_url=R2_ENDPOINT,
+        aws_access_key_id=R2_ACCESS_KEY_ID,
+        aws_secret_access_key=R2_SECRET_ACCESS_KEY,
+        region_name="auto",
+    )
+    client.put_object(
+        Bucket=bucket,
+        Key=key,
+        Body=payload,
+        ContentType="application/json",
+    )
+
+
+async def insert_scan_metadata(user_id, r2_url, stats):
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        raise RuntimeError("Supabase service role no configurado")
+
+    headers = {
+        "apikey": SUPABASE_SERVICE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation",
+    }
+
+    payload = {
+        "user_id": user_id,
+        "r2_url": r2_url,
+        "point_count": stats["point_count"],
+        "points_per_second": stats["points_per_second"],
+        "duration_seconds": stats["duration_seconds"],
+    }
+
+    url = f"{SUPABASE_URL}/rest/v1/scans"
+    timeout = httpx.Timeout(10.0)
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        response = await client.post(url, headers=headers, json=payload)
+
+    if response.status_code not in (200, 201):
+        raise RuntimeError(
+            f"Insert scans falló ({response.status_code}): {response.text}"
+        )
+
+    rows = response.json()
+    if not rows:
+        return None
+    return rows[0].get("id")
+
+
+async def save_scan_to_r2(points, user_id):
+    if not points:
+        raise RuntimeError("No hay puntos para guardar")
+
+    required = [R2_BUCKET, R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY]
+    if not all(required):
+        raise RuntimeError("Credenciales R2 incompletas")
+
+    key = f"scans/{user_id}/{uuid.uuid4()}.json"
+    payload = json.dumps(points).encode("utf-8")
+
+    await asyncio.to_thread(upload_json_to_r2_blocking, R2_BUCKET, key, payload)
+
+    r2_url = build_r2_url(key)
+    stats = get_scan_stats()
+    scan_id = await insert_scan_metadata(user_id, r2_url, stats)
+
+    return {
+        "scan_id": scan_id,
+        "url": r2_url,
+    }
 
 
 def parse_sensor_data(message):
@@ -206,8 +394,13 @@ async def get_all_points_from_redis():
 
 async def clear_points_from_redis():
     """Limpia todos los puntos del escaneo en Redis"""
+    global total_points_processed, start_time, scan_started_at
+
     try:
         await redis_client.delete(REDIS_KEY)
+        total_points_processed = 0
+        start_time = None
+        scan_started_at = None
         print("Puntos limpiados de Redis")
         return True
     except Exception as e:
@@ -236,13 +429,15 @@ async def broadcast_to_web_clients(data, message_type="new_points"):
 
 
 def process_sensor_points(sensor_points):
-    global total_points_processed, start_time
+    global total_points_processed, start_time, scan_started_at
 
     if not sensor_points:
         return []
 
     if start_time is None:
         start_time = time.time()
+    if scan_started_at is None:
+        scan_started_at = time.time()
 
     print(f"Puntos parseados: {len(sensor_points)}")
 
@@ -280,19 +475,12 @@ async def handle_web_client_message(ws, data):
     """Maneja mensajes específicos del cliente web"""
     message_type = data.get("type")
 
-    if message_type == "register" and data.get("client") == "web":
-        web_clients.add(ws)
-        print(f"Cliente web registrado: {ws.remote_address}")
+    if message_type == "clear_scan":
+        client_auth = authenticated_web_clients.get(ws)
+        if not client_auth:
+            await ws.send(json.dumps({"type": "error", "code": 401}))
+            return
 
-        # Enviar estado actual al cliente recién conectado
-        current_points = await get_all_points_from_redis()
-        if current_points:
-            await ws.send(json.dumps({"type": "initial_state", "data": current_points}))
-            print(f"Estado inicial enviado: {len(current_points)} puntos")
-        else:
-            await ws.send(json.dumps({"type": "initial_state", "data": []}))
-
-    elif message_type == "clear_scan":
         print(f"Solicitud de limpieza de escaneo de: {ws.remote_address}")
         success = await clear_points_from_redis()
 
@@ -303,18 +491,166 @@ async def handle_web_client_message(ws, data):
         else:
             await ws.send(json.dumps({"type": "clear_response", "success": False}))
 
+    elif message_type == "save_scan":
+        client_auth = authenticated_web_clients.get(ws)
+        if not client_auth:
+            await ws.send(json.dumps({"type": "error", "code": 401}))
+            return
+
+        try:
+            points = await get_all_points_from_redis()
+            result = await save_scan_to_r2(points, client_auth["user_id"])
+            await ws.send(
+                json.dumps(
+                    {
+                        "type": "save_response",
+                        "success": True,
+                        "scan_id": result["scan_id"],
+                        "url": result["url"],
+                    }
+                )
+            )
+        except Exception as e:
+            print(f"Error guardando escaneo en R2: {e}")
+            await ws.send(
+                json.dumps(
+                    {
+                        "type": "save_response",
+                        "success": False,
+                    }
+                )
+            )
+
 
 async def server(ws):
     print("Cliente conectado:", ws.remote_address)
+    client_type = None
+
     try:
         async for message in ws:
             try:
-                if isinstance(message, bytes):
+                if client_type is None:
+                    if isinstance(message, bytes):
+                        await ws.send(
+                            json.dumps(
+                                {
+                                    "type": "error",
+                                    "code": 401,
+                                    "reason": "device_auth_required",
+                                }
+                            )
+                        )
+                        await ws.close(code=1008, reason="device_auth_required")
+                        break
+
+                    if not isinstance(message, str):
+                        await ws.close(code=1003, reason="unsupported_message_type")
+                        break
+
+                    data = None
+                    try:
+                        data = json.loads(message)
+                    except json.JSONDecodeError:
+                        await ws.send(
+                            json.dumps(
+                                {
+                                    "type": "error",
+                                    "code": 401,
+                                    "reason": "auth_message_required",
+                                }
+                            )
+                        )
+                        await ws.close(code=1008, reason="auth_message_required")
+                        break
+
+                    if data.get("type") == "auth":
+                        password = data.get("password")
+                        if not DEVICE_PASSWORD or password != DEVICE_PASSWORD:
+                            await ws.send(
+                                json.dumps(
+                                    {
+                                        "type": "error",
+                                        "code": 401,
+                                        "reason": "invalid_device_password",
+                                    }
+                                )
+                            )
+                            await ws.close(code=1008, reason="invalid_device_password")
+                            break
+
+                        client_type = "device"
+                        await ws.send(
+                            json.dumps({"type": "auth_response", "success": True})
+                        )
+                        print(f"Dispositivo autenticado: {ws.remote_address}")
+                        continue
+
+                    if data.get("type") == "register" and data.get("client") == "web":
+                        token = data.get("token") or extract_ws_token(ws)
+                        user = await verify_supabase_jwt(token)
+                        if not user:
+                            await ws.send(
+                                json.dumps(
+                                    {
+                                        "type": "error",
+                                        "code": 401,
+                                        "reason": "invalid_or_missing_token",
+                                    }
+                                )
+                            )
+                            await ws.close(code=1008, reason="invalid_or_missing_token")
+                            break
+
+                        profile_status = await get_profile_status(user.get("id"))
+                        if profile_status != "approved":
+                            await ws.send(
+                                json.dumps(
+                                    {
+                                        "type": "error",
+                                        "code": 403,
+                                        "reason": "user_not_approved",
+                                    }
+                                )
+                            )
+                            await ws.close(code=1008, reason="user_not_approved")
+                            break
+
+                        client_type = "web"
+                        web_clients.add(ws)
+                        authenticated_web_clients[ws] = {
+                            "user_id": user.get("id"),
+                        }
+                        print(
+                            f"Cliente web autenticado: {ws.remote_address} ({user.get('id')})"
+                        )
+
+                        current_points = await get_all_points_from_redis()
+                        await ws.send(
+                            json.dumps(
+                                {"type": "initial_state", "data": current_points}
+                            )
+                        )
+                        continue
+
+                    await ws.send(
+                        json.dumps(
+                            {
+                                "type": "error",
+                                "code": 401,
+                                "reason": "unknown_client_type",
+                            }
+                        )
+                    )
+                    await ws.close(code=1008, reason="unknown_client_type")
+                    break
+
+                if client_type == "device" and isinstance(message, bytes):
                     print(
                         f"Cliente identificado como Pico (binario): {ws.remote_address}"
                     )
                     sensor_points = parse_binary_sensor_data(message)
-                elif isinstance(message, str):
+
+                elif client_type == "device" and isinstance(message, str):
                     data = None
                     try:
                         data = json.loads(message)
@@ -334,6 +670,18 @@ async def server(ws):
                         f"Cliente identificado como Pico (texto): {ws.remote_address}"
                     )
                     sensor_points = parse_sensor_data(message)
+
+                elif client_type == "web" and isinstance(message, str):
+                    try:
+                        data = json.loads(message)
+                    except json.JSONDecodeError:
+                        await ws.send("ERROR:UNKNOWN_FORMAT")
+                        continue
+
+                    if data and isinstance(data, dict):
+                        await handle_web_client_message(ws, data)
+                    continue
+
                 else:
                     print(
                         f"Tipo de mensaje desconocido de {ws.remote_address}: {type(message)}"
@@ -363,6 +711,7 @@ async def server(ws):
         print(f"Error en el servidor: {e}")
     finally:
         web_clients.discard(ws)
+        authenticated_web_clients.pop(ws, None)
         print(f"Cliente desconectado: {ws.remote_address}")
 
 
@@ -370,8 +719,9 @@ async def main():
     # Inicializar Redis
     await init_redis()
 
-    async with websockets.serve(server, "0.0.0.0", 3000):
-        print("Servidor iniciado en ws://0.0.0.0:3000")
+    port = int(os.getenv("PORT", "3000"))
+    async with websockets.serve(server, "0.0.0.0", port):
+        print(f"Servidor iniciado en ws://0.0.0.0:{port}")
         print("Conexión a Redis establecida")
         print("Esperando conexiones...")
         print("- Clientes web deben enviar: {'type': 'register', 'client': 'web'}")

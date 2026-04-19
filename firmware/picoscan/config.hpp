@@ -22,3 +22,4 @@
 #define CFG_DEFAULT_TCP_IP        "10.208.207.87"
 #define CFG_DEFAULT_TCP_PORT      3000
 #define CFG_DEFAULT_BATCH_SIZE    100
+#define CFG_DEFAULT_DEVICE_PASS   "PicoRemote2026!"

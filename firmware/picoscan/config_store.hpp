@@ -18,6 +18,7 @@ struct PersistentConfig {
     // ── Cloud ─────────────────────────────────────────────────────────────────
     char tcp_ip[40];      // IPv4 o hostname corto
     uint16_t tcp_port;
+    char device_pass[64];
 
     // ── Scan defaults ─────────────────────────────────────────────────────────
     uint16_t batch_size;
@@ -32,7 +33,7 @@ static_assert(sizeof(PersistentConfig) <= 256,
 class ConfigStore {
 public:
     static constexpr uint32_t MAGIC   = 0x50534346u;
-    static constexpr uint16_t VERSION = 1;
+    static constexpr uint16_t VERSION = 2;
 
     // Carga config desde flash. Retorna false si no hay config válida.
     static bool load(PersistentConfig &out);

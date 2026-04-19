@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Popover,
   PopoverTrigger,
@@ -13,18 +13,33 @@ import {
   DropdownMenu,
   DropdownItem,
 } from '@heroui/react';
+import Link from 'next/link';
+
+import { createClient } from '../lib/supabase/client';
+
+interface ExampleRecord {
+  id: string;
+  name: string;
+  description: string | null;
+  r2_url: string;
+}
 
 interface InfoProps {
   connectionStatus: string;
   isConnected: boolean;
   points: any[];
   lastUpdate: Date | null;
-  connect: () => void;
+  connect: () => Promise<void>;
   disconnect: () => void;
   exportData: () => void;
   importData: (file: File) => void;
   importFromURL: (url: string) => void;
   clearScan: () => void;
+  saveScan: () => void;
+  isSaving: boolean;
+  canUseLiveFeatures: boolean;
+  currentUserEmail: string | null;
+  signOut: () => Promise<void>;
 }
 
 export const Info = ({
@@ -38,8 +53,45 @@ export const Info = ({
   importData,
   importFromURL,
   clearScan,
+  saveScan,
+  isSaving,
+  canUseLiveFeatures,
+  currentUserEmail,
+  signOut,
 }: InfoProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [examples, setExamples] = useState<ExampleRecord[]>([]);
+  const [isLoadingExamples, setIsLoadingExamples] = useState(true);
+  const [examplesError, setExamplesError] = useState<string | null>(null);
+
+  const loadExamples = useCallback(async () => {
+    try {
+      setIsLoadingExamples(true);
+      setExamplesError(null);
+
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('examples')
+        .select('id, name, description, r2_url')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      setExamples(data ?? []);
+    } catch (error) {
+      console.error('Error cargando ejemplos desde Supabase:', error);
+      setExamples([]);
+      setExamplesError('No se pudieron cargar los ejemplos');
+    } finally {
+      setIsLoadingExamples(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadExamples();
+  }, [loadExamples, canUseLiveFeatures, currentUserEmail]);
 
   return (
     <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
@@ -60,72 +112,35 @@ export const Info = ({
           </Button>
         </DropdownTrigger>
         <DropdownMenu aria-label="Ejemplos de escaneos">
-          <DropdownItem
-            key="t3-210"
-            description="Facultad de Ingeniería USAC"
-            onClick={() =>
-              importFromURL(
-                'https://pub-4fbb31ff60a64dc0a85d1af67478682f.r2.dev/test-file/t3-210.json'
-              )
-            }
-          >
-            Salón T3-210
-          </DropdownItem>
-          <DropdownItem
-            key="dataset-01"
-            description="TF-Mini S · φ 0°–60° · 11,041 pts"
-            onClick={() =>
-              importFromURL(
-                'https://pub-4fbb31ff60a64dc0a85d1af67478682f.r2.dev/datasets/dataset-01.json'
-              )
-            }
-          >
-            Dataset 01
-          </DropdownItem>
-          <DropdownItem
-            key="dataset-02"
-            description="TF-Mini S · φ 65°–120° · 9,799 pts"
-            onClick={() =>
-              importFromURL(
-                'https://pub-4fbb31ff60a64dc0a85d1af67478682f.r2.dev/datasets/dataset-02.json'
-              )
-            }
-          >
-            Dataset 02
-          </DropdownItem>
-          <DropdownItem
-            key="dataset-03"
-            description="TF-Mini S · φ 26°–120° · 16,659 pts"
-            onClick={() =>
-              importFromURL(
-                'https://pub-4fbb31ff60a64dc0a85d1af67478682f.r2.dev/datasets/dataset-03.json'
-              )
-            }
-          >
-            Dataset 03
-          </DropdownItem>
-          <DropdownItem
-            key="dataset-04"
-            description="TF-Mini S · φ 10°–120° · 19,600 pts"
-            onClick={() =>
-              importFromURL(
-                'https://pub-4fbb31ff60a64dc0a85d1af67478682f.r2.dev/datasets/dataset-04.json'
-              )
-            }
-          >
-            Dataset 04
-          </DropdownItem>
-          <DropdownItem
-            key="dataset-05"
-            description="LD19 · 2D estático · 99 pts"
-            onClick={() =>
-              importFromURL(
-                'https://pub-4fbb31ff60a64dc0a85d1af67478682f.r2.dev/datasets/dataset-05.json'
-              )
-            }
-          >
-            Dataset 05
-          </DropdownItem>
+          {isLoadingExamples ? (
+            <DropdownItem key="examples-loading" isDisabled>
+              Cargando ejemplos...
+            </DropdownItem>
+          ) : examplesError ? (
+            <DropdownItem
+              key="examples-error"
+              description="Tocá para reintentar"
+              onClick={() => {
+                void loadExamples();
+              }}
+            >
+              {examplesError}
+            </DropdownItem>
+          ) : examples.length === 0 ? (
+            <DropdownItem key="examples-empty" isDisabled>
+              No hay ejemplos disponibles
+            </DropdownItem>
+          ) : (
+            examples.map((example) => (
+              <DropdownItem
+                key={example.id}
+                description={example.description ?? 'Sin descripción'}
+                onClick={() => importFromURL(example.r2_url)}
+              >
+                {example.name}
+              </DropdownItem>
+            ))
+          )}
         </DropdownMenu>
       </Dropdown>
 
@@ -153,6 +168,35 @@ export const Info = ({
           <div className="px-1 py-2 w-full">
             <div className="text-small font-bold mb-2">LiDAR Visualizer</div>
 
+            <Button
+              as={Link}
+              href="/"
+              size="sm"
+              variant="flat"
+              className="w-full mb-3"
+            >
+              Volver al inicio
+            </Button>
+
+            <div className="flex justify-between text-xs mb-2">
+              <span className="text-default-500">Usuario:</span>
+              <span className="text-xs max-w-[170px] truncate" title={currentUserEmail ?? 'Anónimo'}>
+                {currentUserEmail ?? 'Anónimo'}
+              </span>
+            </div>
+
+            {currentUserEmail && (
+              <Button
+                size="sm"
+                variant="light"
+                color="danger"
+                onClick={signOut}
+                className="w-full mb-3"
+              >
+                Cerrar sesión
+              </Button>
+            )}
+
             <div className="flex justify-between text-xs mb-3">
               <span className="text-default-500">Estado:</span>
               <Chip color={isConnected ? 'success' : 'default'} size="sm">
@@ -175,10 +219,21 @@ export const Info = ({
                   <Button color="success" size="sm" onClick={connect} fullWidth>
                     Conectar
                   </Button>
-                  <Button color="danger" size="sm" onClick={disconnect} fullWidth>
+                  <Button
+                    color="danger"
+                    size="sm"
+                    onClick={disconnect}
+                    isDisabled={!canUseLiveFeatures}
+                    fullWidth
+                  >
                     Desconectar
                   </Button>
                 </div>
+                {!canUseLiveFeatures && (
+                  <p className="text-xs text-default-500 mt-1">
+                    Modo público: funciones en vivo deshabilitadas.
+                  </p>
+                )}
               </AccordionItem>
 
               <AccordionItem key="data" title="Datos">
@@ -187,9 +242,20 @@ export const Info = ({
                     color="warning"
                     size="sm"
                     onClick={clearScan}
+                    isDisabled={!canUseLiveFeatures}
                     fullWidth
                   >
                     Limpiar escaneo
+                  </Button>
+                  <Button
+                    color="secondary"
+                    size="sm"
+                    onClick={saveScan}
+                    isLoading={isSaving}
+                    isDisabled={!canUseLiveFeatures}
+                    fullWidth
+                  >
+                    Guardar escaneo
                   </Button>
                   <Button
                     color="primary"

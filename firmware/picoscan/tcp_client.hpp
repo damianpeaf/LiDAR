@@ -46,6 +46,10 @@ private:
     int rx_buffer_len;
     int connected;
     bool handshake_complete;
+    bool device_authenticated;
+    bool auth_pending;
+    uint16_t remote_port;
+    char device_password[64];
     
     static err_t tcp_client_sent_callback(void *arg, struct tcp_pcb *tpcb, u16_t len);
     static err_t tcp_client_connected_callback(void *arg, struct tcp_pcb *tpcb, err_t err);
@@ -60,11 +64,13 @@ private:
     int point_index_from_offset(int offset) const;
     const LidarPointWithServo &queued_point_at(int offset) const;
     void drop_queued_points(int count);
+    bool send_device_auth();
 
 public:
     TCPClient();
     
     void set_server_address(const char* ip, uint16_t port);
+    void set_device_password(const char* password);
     err_t connect_to_server();
     bool is_connected() const;
     bool is_disconnected() const;

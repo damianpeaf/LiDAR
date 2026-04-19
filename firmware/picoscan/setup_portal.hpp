@@ -25,6 +25,7 @@ static const char PORTAL_HTML[] =
     "<h2>Servidor</h2>"
     "<label>IP o hostname<input name=\"ip\" required placeholder=\"192.168.1.x\"></label>"
     "<label>Puerto<input name=\"port\" type=\"number\" value=\"3000\" min=\"1\" max=\"65535\"></label>"
+    "<label>Clave dispositivo<input name=\"device_pass\" type=\"password\"></label>"
     "<h2>Escaneo</h2>"
     "<label>Batch size<input name=\"batch\" type=\"number\" value=\"100\" min=\"10\" max=\"1000\"></label>"
     "<button type=\"submit\">Guardar y reiniciar</button>"

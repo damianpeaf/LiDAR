@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { addToast } from '@heroui/react';
+import { createClient } from '../lib/supabase/client';
 
 interface Point {
   intensity: number;
@@ -9,9 +10,10 @@ interface Point {
 }
 
 interface ServerMessage {
-  type: 'initial_state' | 'new_points' | 'scan_cleared' | 'clear_response';
+  type: 'initial_state' | 'new_points' | 'scan_cleared' | 'clear_response' | 'save_response';
   data?: Point[];
   success?: boolean;
+  url?: string;
 }
 
 export const useLidar = () => {
@@ -22,9 +24,79 @@ export const useLidar = () => {
   >('disconnected');
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [isClearing, setIsClearing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [canUseLiveFeatures, setCanUseLiveFeatures] = useState(false);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
-  const connectWebSocket = () => {
+  useEffect(() => {
+    const loadPermissions = async () => {
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          setCurrentUserEmail(null);
+          setCanUseLiveFeatures(false);
+          return;
+        }
+
+        setCurrentUserEmail(user.email ?? null);
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('status')
+          .eq('id', user.id)
+          .single();
+
+        setCanUseLiveFeatures(profile?.status === 'approved');
+      } catch (error) {
+        console.error('Error verificando permisos de usuario:', error);
+        setCurrentUserEmail(null);
+        setCanUseLiveFeatures(false);
+      }
+    };
+
+    loadPermissions();
+  }, []);
+
+  const resolveWebSocketUrl = (accessToken?: string) => {
+    const configured = process.env.NEXT_PUBLIC_LIDAR_WS_URL;
+
+    if (!configured) {
+      const wsProtocol =
+        window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsHost = window.location.hostname || 'localhost';
+      const base = `${wsProtocol}//${wsHost}:3000`;
+      return accessToken ? `${base}?token=${accessToken}` : base;
+    }
+
+    const url = new URL(configured);
+    if (url.protocol === 'https:') {
+      url.protocol = 'wss:';
+    } else if (url.protocol === 'http:') {
+      url.protocol = 'ws:';
+    }
+
+    if (accessToken) {
+      url.searchParams.set('token', accessToken);
+    }
+
+    return url.toString();
+  };
+
+  const connectWebSocket = async (token?: string) => {
+    if (!canUseLiveFeatures) {
+      addToast({
+        title: 'Modo público',
+        description: 'Iniciá sesión con una cuenta aprobada para conectarte',
+        color: 'warning',
+      });
+      return;
+    }
+
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       return;
     }
@@ -32,10 +104,16 @@ export const useLidar = () => {
     setConnectionStatus('connecting');
 
     try {
-      const wsProtocol =
-        window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsHost = window.location.hostname || 'localhost';
-      const ws = new WebSocket(`${wsProtocol}//${wsHost}:3000`);
+      // Get JWT token from Supabase if not provided
+      let accessToken = token;
+      if (!accessToken) {
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        accessToken = session?.access_token;
+      }
+
+      const wsUrl = resolveWebSocketUrl(accessToken);
+      const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
         console.log('Conectado al servidor WebSocket');
@@ -49,7 +127,13 @@ export const useLidar = () => {
         });
 
         // Registrarse como cliente web
-        ws.send(JSON.stringify({ type: 'register', client: 'web' }));
+        ws.send(
+          JSON.stringify({
+            type: 'register',
+            client: 'web',
+            token: accessToken,
+          })
+        );
       };
 
       ws.onmessage = (event) => {
@@ -108,6 +192,26 @@ export const useLidar = () => {
                 addToast({
                   title: 'Error al limpiar',
                   description: 'No se pudo limpiar el escaneo',
+                  color: 'danger',
+                });
+              }
+              break;
+
+            case 'save_response':
+              // Respuesta a nuestra solicitud de guardar
+              setIsSaving(false);
+              if (message.success) {
+                console.log('Escaneo guardado exitosamente:', message.url);
+                addToast({
+                  title: 'Escaneo guardado',
+                  description: 'El escaneo fue guardado correctamente en la nube',
+                  color: 'success',
+                });
+              } else {
+                console.error('Error al guardar escaneo');
+                addToast({
+                  title: 'Error al guardar',
+                  description: 'No se pudo guardar el escaneo',
                   color: 'danger',
                 });
               }
@@ -187,11 +291,21 @@ export const useLidar = () => {
     setIsConnected(false);
     setConnectionStatus('disconnected');
     setIsClearing(false);
+    setIsSaving(false);
     // No limpiar puntos localmente al desconectar,
     // ya que el estado persistirá en el servidor
   };
 
   const clearScan = () => {
+    if (!canUseLiveFeatures) {
+      addToast({
+        title: 'Modo público',
+        description: 'Esta acción requiere cuenta aprobada',
+        color: 'warning',
+      });
+      return;
+    }
+
     if (!isConnected || !wsRef.current || isClearing) {
       console.warn('No se puede limpiar: no conectado o ya limpiando');
       addToast({
@@ -213,6 +327,64 @@ export const useLidar = () => {
       addToast({
         title: 'Error',
         description: 'No se pudo enviar la solicitud de limpieza',
+        color: 'danger',
+      });
+    }
+  };
+
+  const saveScan = () => {
+    if (!canUseLiveFeatures) {
+      addToast({
+        title: 'Modo público',
+        description: 'Esta acción requiere cuenta aprobada',
+        color: 'warning',
+      });
+      return;
+    }
+
+    if (!isConnected || !wsRef.current || isSaving) {
+      addToast({
+        title: 'No disponible',
+        description: 'Debes estar conectado para guardar el escaneo',
+        color: 'warning',
+      });
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      wsRef.current.send(JSON.stringify({ type: 'save_scan' }));
+      console.log('Solicitud de guardado enviada');
+    } catch (error) {
+      console.error('Error al enviar solicitud de guardado:', error);
+      setIsSaving(false);
+      addToast({
+        title: 'Error',
+        description: 'No se pudo enviar la solicitud de guardado',
+        color: 'danger',
+      });
+    }
+  };
+
+  const signOut = async () => {
+    try {
+      disconnect();
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      setCurrentUserEmail(null);
+      setCanUseLiveFeatures(false);
+      addToast({
+        title: 'Sesión cerrada',
+        description: 'Volviendo al inicio',
+        color: 'success',
+      });
+      window.location.href = '/';
+    } catch (error) {
+      console.error('Error cerrando sesión:', error);
+      addToast({
+        title: 'Error',
+        description: 'No se pudo cerrar sesión',
         color: 'danger',
       });
     }
@@ -300,7 +472,9 @@ export const useLidar = () => {
         color: 'primary',
       });
 
-      const response = await fetch(url);
+      const response = await fetch(
+        `/api/examples?url=${encodeURIComponent(url)}`
+      );
       if (!response.ok) {
         throw new Error(`Error al descargar archivo: ${response.status}`);
       }
@@ -330,9 +504,14 @@ export const useLidar = () => {
     connectionStatus,
     lastUpdate,
     isClearing,
+    isSaving,
+    canUseLiveFeatures,
+    currentUserEmail,
     connect: connectWebSocket,
     disconnect,
     clearScan,
+    saveScan,
+    signOut,
     exportData,
     importData,
     importFromURL,

@@ -20,13 +20,28 @@ constexpr uint8_t kBinaryBatchFlags = 0;
 // https://github.com/samjkent/picow-websocket
 
 TCPClient::TCPClient() : points_head(0), points_tail(0), points_count(0), tcp_pcb(nullptr), tx_buffer_len(0),
-                          rx_buffer_len(0), connected(TCP_DISCONNECTED), handshake_complete(false)
+                          rx_buffer_len(0), connected(TCP_DISCONNECTED), handshake_complete(false),
+                          device_authenticated(false), auth_pending(false), remote_port(3000)
 {
+    device_password[0] = '\0';
 }
 
 void TCPClient::set_server_address(const char *ip, uint16_t port)
 {
     ip4addr_aton(ip, &remote_addr);
+    remote_port = port;
+}
+
+void TCPClient::set_device_password(const char* password)
+{
+    if (!password)
+    {
+        device_password[0] = '\0';
+        return;
+    }
+
+    strncpy(device_password, password, sizeof(device_password) - 1);
+    device_password[sizeof(device_password) - 1] = '\0';
 }
 
 err_t TCPClient::tcp_client_sent_callback(void *arg, struct tcp_pcb *tpcb, u16_t len)
@@ -43,8 +58,20 @@ err_t TCPClient::tcp_client_connected_callback(void *arg, struct tcp_pcb *tpcb, 
         return err;
     }
 
-    client->tx_buffer_len = sprintf((char *)client->tx_buffer,
-                                    "GET / HTTP/1.1\r\nHost: 10.208.207.87:3000\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==\r\nSec-WebSocket-Protocol: chat, superchat\r\nSec-WebSocket-Version: 13\r\n\r\n");
+    char host_ip[16];
+    ip4addr_ntoa_r(ip_2_ip4(&client->remote_addr), host_ip, sizeof(host_ip));
+
+    client->tx_buffer_len = snprintf((char *)client->tx_buffer,
+                                    TX_BUF_SIZE,
+                                    "GET / HTTP/1.1\r\n"
+                                    "Host: %s:%u\r\n"
+                                    "Upgrade: websocket\r\n"
+                                    "Connection: Upgrade\r\n"
+                                    "Sec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==\r\n"
+                                    "Sec-WebSocket-Protocol: chat, superchat\r\n"
+                                    "Sec-WebSocket-Version: 13\r\n\r\n",
+                                    host_ip,
+                                    client->remote_port);
 
     err = tcp_write(client->tcp_pcb, client->tx_buffer, client->tx_buffer_len, TCP_WRITE_FLAG_COPY);
     client->connected = TCP_CONNECTED;
@@ -93,12 +120,46 @@ err_t TCPClient::tcp_client_recv_callback(void *arg, struct tcp_pcb *tpcb, struc
                 found_switching_protocols = true;
                 client->handshake_complete = true;
                 printf("WebSocket handshake completed\r\n");
+                client->send_device_auth();
             }
         }
 
         if (!found_switching_protocols)
         {
             printf("WebSocket handshake failed\r\n");
+        }
+    }
+    else if (p->tot_len > 0)
+    {
+        bool got_auth_ok = false;
+        bool got_auth_error = false;
+
+        for (struct pbuf *q = p; q != NULL; q = q->next)
+        {
+            char *payload_str = (char *)q->payload;
+            if (strstr(payload_str, "auth_response") != NULL && strstr(payload_str, "true") != NULL)
+            {
+                got_auth_ok = true;
+            }
+            if (strstr(payload_str, "invalid_device_password") != NULL)
+            {
+                got_auth_error = true;
+            }
+        }
+
+        if (got_auth_ok)
+        {
+            client->device_authenticated = true;
+            client->auth_pending = false;
+            printf("Device auth accepted by server\r\n");
+        }
+        if (got_auth_error)
+        {
+            client->device_authenticated = false;
+            client->auth_pending = false;
+            printf("Device auth rejected by server\r\n");
+            client->close_connection();
+            return ERR_OK;
         }
     }
 
@@ -129,6 +190,8 @@ err_t TCPClient::close_connection()
     }
     connected = TCP_DISCONNECTED;
     handshake_complete = false;
+    device_authenticated = false;
+    auth_pending = false;
     return err;
 }
 
@@ -153,6 +216,8 @@ err_t TCPClient::connect_to_server()
     handshake_complete = false;
     cyw43_arch_lwip_begin();
     connected = TCP_CONNECTING;
+    device_authenticated = false;
+    auth_pending = false;
     err_t err = tcp_connect(tcp_pcb, &remote_addr, 3000, tcp_client_connected_callback);
     cyw43_arch_lwip_end();
 
@@ -258,9 +323,58 @@ bool TCPClient::is_handshake_complete() const
     return handshake_complete;
 }
 
+bool TCPClient::send_device_auth()
+{
+    if (!is_connected() || !is_handshake_complete() || device_authenticated || auth_pending)
+    {
+        return false;
+    }
+
+    if (device_password[0] == '\0')
+    {
+        printf("Device password missing; cannot auth\r\n");
+        return false;
+    }
+
+    char auth_json[128];
+    int auth_len = snprintf(auth_json, sizeof(auth_json),
+                            "{\"type\":\"auth\",\"password\":\"%s\"}",
+                            device_password);
+    if (auth_len <= 0 || auth_len >= (int)sizeof(auth_json))
+    {
+        printf("Auth payload build failed\r\n");
+        return false;
+    }
+
+    err_t err = ERR_VAL;
+    cyw43_arch_lwip_begin();
+    tx_buffer_len = WS::BuildPacket((char *)tx_buffer, TX_BUF_SIZE, WEBSOCKET_OPCODE_TEXT,
+                                    auth_json, auth_len, 1);
+
+    if (tx_buffer_len > 0 && tx_buffer_len <= TX_BUF_SIZE)
+    {
+        err = tcp_write(tcp_pcb, tx_buffer, tx_buffer_len, TCP_WRITE_FLAG_COPY);
+        if (err == ERR_OK)
+        {
+            tcp_output(tcp_pcb);
+        }
+    }
+    cyw43_arch_lwip_end();
+
+    if (err == ERR_OK)
+    {
+        auth_pending = true;
+        printf("Device auth message sent\r\n");
+        return true;
+    }
+
+    printf("Device auth send failed: %d\r\n", err);
+    return false;
+}
+
 bool TCPClient::send_points_batch(int batch_size)
 {
-    if (points_count < batch_size || !is_connected() || !is_handshake_complete())
+    if (points_count < batch_size || !is_connected() || !is_handshake_complete() || !device_authenticated)
         return false;
 
     static uint8_t payload_buffer[MAX_BINARY_PAYLOAD_SIZE];

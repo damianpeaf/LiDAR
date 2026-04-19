@@ -147,6 +147,7 @@ private:
     bool init_network()
     {
         tcp_.set_server_address(cfg_.tcp_ip, cfg_.tcp_port);
+        tcp_.set_device_password(cfg_.device_pass);
         printf("[net] connecting to %s:%u\n", cfg_.tcp_ip, cfg_.tcp_port);
         return tcp_.connect_to_server() != ERR_ABRT;
     }

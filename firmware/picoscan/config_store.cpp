@@ -142,6 +142,7 @@ void ConfigStore::fill_defaults(PersistentConfig &cfg)
     strncpy(cfg.wifi_pass,    CFG_DEFAULT_WIFI_PASS,    sizeof(cfg.wifi_pass)    - 1);
     strncpy(cfg.wifi_country, CFG_DEFAULT_WIFI_COUNTRY, sizeof(cfg.wifi_country) - 1);
     strncpy(cfg.tcp_ip,       CFG_DEFAULT_TCP_IP,       sizeof(cfg.tcp_ip)       - 1);
+    strncpy(cfg.device_pass,  CFG_DEFAULT_DEVICE_PASS,  sizeof(cfg.device_pass)  - 1);
     cfg.tcp_port   = CFG_DEFAULT_TCP_PORT;
     cfg.batch_size = CFG_DEFAULT_BATCH_SIZE;
 

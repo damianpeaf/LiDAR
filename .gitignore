@@ -33,3 +33,7 @@
 
 # Editor and tool caches
 **/.cache/
+.atl/
+.vercel
+
+.temp

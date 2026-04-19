@@ -12,6 +12,8 @@
     "@heroui/react": "^2.8.5",
     "@react-three/drei": "^10.0.7",
     "@react-three/fiber": "^9.1.2",
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.49.8",
     "framer-motion": "^12.23.24",
     "next": "15.5.14",
     "react": "^19.0.0",

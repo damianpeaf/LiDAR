@@ -22,6 +22,11 @@ export default function ClientPointCloudWrapper() {
     importData,
     importFromURL,
     clearScan,
+    saveScan,
+    isSaving,
+    canUseLiveFeatures,
+    currentUserEmail,
+    signOut,
   } = useLidar();
 
   return (
@@ -37,6 +42,11 @@ export default function ClientPointCloudWrapper() {
         importData={importData}
         importFromURL={importFromURL}
         clearScan={clearScan}
+        saveScan={saveScan}
+        isSaving={isSaving}
+        canUseLiveFeatures={canUseLiveFeatures}
+        currentUserEmail={currentUserEmail}
+        signOut={signOut}
       />
 
       <PointCloud points={points} />

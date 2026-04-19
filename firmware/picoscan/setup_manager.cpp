@@ -277,11 +277,16 @@ bool SetupManager::parse_form_and_build_config(const char *body, PersistentConfi
 
     get_form_field(body, "pass",    out.wifi_pass,    sizeof(out.wifi_pass));
     get_form_field(body, "country", out.wifi_country, sizeof(out.wifi_country));
+    get_form_field(body, "device_pass", out.device_pass, sizeof(out.device_pass));
 
     if (get_form_field(body, "port", tmp, sizeof(tmp)))
         out.tcp_port = (uint16_t)atoi(tmp);
     if (get_form_field(body, "batch", tmp, sizeof(tmp)))
         out.batch_size = (uint16_t)atoi(tmp);
+
+    if (out.device_pass[0] == '\0') {
+        strncpy(out.device_pass, CFG_DEFAULT_DEVICE_PASS, sizeof(out.device_pass) - 1);
+    }
 
     ConfigStore::seal(out);
     return true;
