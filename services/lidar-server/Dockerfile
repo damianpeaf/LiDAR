@@ -4,10 +4,10 @@ WORKDIR /app
 
 RUN pip install --upgrade pip
 
-COPY requirements.txt ./requirements.txt
+COPY services/lidar-server/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY services/lidar-server/main.py ./main.py
 
 EXPOSE 3000
 
