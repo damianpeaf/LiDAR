@@ -736,7 +736,7 @@ async def main():
     print(f"[SERVER] R2_BUCKET: {R2_BUCKET or '(no configurado)'}")
     print("=" * 60)
 
-    async with websockets.serve(server, "0.0.0.0", port):
+    async with websockets.serve(server, "0.0.0.0", port, ping_interval=None, ping_timeout=None):
         print(f"[SERVER] escuchando en ws://0.0.0.0:{port}")
         print("[SERVER] Protocolo: primer mensaje debe ser auth (device) o register (web)")
         await asyncio.Future()
