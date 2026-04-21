@@ -1,6 +1,6 @@
 # Experimento 1D — Registro multi-posición (referencia)
 
-**Objetivo:** Ensayar la metodología de registro multi-posición que se usará en Huehuetenango, usando el mismo objeto de referencia del experimento 1C. Este experimento valida el procedimiento antes de estar en campo.
+**Objetivo:** Ensayar la metodología de registro multi-posición que se usará en Huehuetenango, usando el mismo objeto de referencia del experimento 1C con datos simples para evaluar si el registro sirve o no.
 
 **Responde a:** OBJ 1
 
@@ -18,6 +18,23 @@
 2. Mover dispositivo ~40 cm lateralmente
 3. Posición 2: escaneo completo → exportar JSON → anotar posición
 4. Fotografiar el setup mostrando ambas posiciones
+5. Alinear manualmente ambas nubes y registrar si el solapamiento fue fácil, posible con ajustes o fallido
+
+## Datos a registrar
+
+- distancia entre posiciones (mm)
+- tiempo de captura por posición (s)
+- puntos exportados por posición
+- puntos del modelo combinado final
+- resultado del registro: `exitoso`, `parcial`, `fallido`
+- observación simple del solapamiento/huecos: `bajo`, `medio`, `alto`
+
+### Resumen sugerido (`multipos_ref_summary.csv`)
+
+```csv
+sesion_id,n_posiciones,distancia_entre_pos_mm,tiempo_pos1_s,tiempo_pos2_s,puntos_pos1,puntos_pos2,puntos_combinado,registro_resultado,huecos_observados,observaciones
+1,2,0,0,0,0,0,0,exitoso,bajo,
+```
 
 ## Checklist
 
@@ -28,6 +45,7 @@
 - [ ] Fotografiar setup con ambas posiciones visibles
 - [ ] Alinear manualmente las dos nubes en el visualizador usando el punto de referencia
 - [ ] Captura del modelo combinado
+- [ ] Registrar tiempos, puntos y resultado del registro en el resumen CSV
 
 ## Entregables
 
@@ -37,10 +55,11 @@ data/experiments/ld19_scan/multipos_ref_pos2.json
 data/experiments/ld19_scan/multipos_ref_combinado.png   ← captura del visualizador
 data/experiments/ld19_scan/multipos_ref_setup.jpg
 data/experiments/ld19_scan/multipos_ref_notas.txt       ← posiciones, distancia entre ellas, punto de referencia
+data/experiments/ld19_scan/multipos_ref_summary.csv
 ```
 
 ## Análisis que habilita
 
 - Documenta el procedimiento de registro multi-posición
 - Sirve como base metodológica para la sección de aplicación arqueológica
-- Identifica problemas prácticos antes de estar en campo
+- Identifica problemas prácticos antes de estar en campo con evidencia mínima: tiempo, puntos y calidad del registro
