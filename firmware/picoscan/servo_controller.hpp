@@ -32,10 +32,10 @@ private:
 
     static constexpr uint SERVO_MIN_PULSE = 500;
     static constexpr uint SERVO_MAX_PULSE = 2500;
-    static constexpr uint SERVO_STEP_SIZE = 5;
-    static constexpr int SAMPLES_PER_POSITION = 5;
+    static constexpr uint SERVO_STEP_SIZE = 10;
+    static constexpr int SAMPLES_PER_POSITION = 3;
     static constexpr int MIN_POINTS_PER_SAMPLE = 500;
-    static constexpr uint32_t SERVO_SETTLE_MS = 400;
+    static constexpr uint32_t SERVO_SETTLE_MS = 200;
 
 public:
     ServoController(uint pin);

@@ -29,15 +29,9 @@
 constexpr ExperimentProfile CFG_EXPERIMENT_PROFILE = ExperimentProfile::Scan;
 constexpr uint32_t CFG_TELEMETRY_PERIODIC_INTERVAL_MS = 1000;
 constexpr uint32_t CFG_BENCHMARK_DURATION_SECONDS = 60;
+// 0 = escaneo normal continuo. Para NET1 se puede fijar en 60 y obtener summary/done.
+constexpr uint32_t CFG_SCAN_TARGET_DURATION_SECONDS = 60;
 constexpr uint32_t CFG_PRECISION_TARGET_POINTS = 300;
 constexpr uint32_t CFG_TELEMETRY_POINT_STRIDE = 1;
 constexpr float CFG_PRECISION_ANGLE_CENTER_DEG = 180.0f;
 constexpr float CFG_PRECISION_ANGLE_HALF_WIDTH_DEG = 5.0f;
-
-// ── Escaneo 3D objeto referencia ──────────────────────────────────────────────
-constexpr bool CFG_SCAN_EMIT_POINT_EVENTS = true;
-constexpr float CFG_SCAN_ANGLE_CENTER_DEG = 187.5f;
-constexpr float CFG_SCAN_ANGLE_HALF_WIDTH_DEG = 7.5f;
-constexpr float CFG_SCAN_SERVO_MIN_DEG = 0.0f;
-constexpr float CFG_SCAN_SERVO_MAX_DEG = 30.0f;
-constexpr uint32_t CFG_SCAN_TARGET_SWEEP_PASSES = 5;

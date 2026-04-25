@@ -30,6 +30,7 @@ struct TelemetryStats {
     uint64_t batches_sent = 0;
     uint64_t batch_send_failures = 0;
     uint64_t payload_bytes_sent = 0;
+    uint64_t websocket_frame_bytes_sent = 0;
     uint64_t uart_poll_time_us = 0;
     uint64_t total_frame_time_us = 0;
     uint64_t total_parse_time_us = 0;
@@ -256,14 +257,16 @@ void note_queue_depth(int depth)
     }
 }
 
-void note_batch_sent(int points_in_payload, int payload_bytes, int queue_remaining, float servo_angle)
+void note_batch_sent(int points_in_payload, int payload_bytes, int websocket_frame_bytes, int queue_remaining, float servo_angle)
 {
     stats.batches_sent++;
     stats.payload_bytes_sent += payload_bytes;
+    stats.websocket_frame_bytes_sent += websocket_frame_bytes;
     note_queue_depth(queue_remaining);
-    emit("tcp", "batch_sent", "points=%d|payload_bytes=%d|queue_remaining=%d|servo_deg=%.1f",
+    emit("tcp", "batch_sent", "points=%d|payload_bytes=%d|websocket_frame_bytes=%d|queue_remaining=%d|servo_deg=%.1f",
          points_in_payload,
          payload_bytes,
+         websocket_frame_bytes,
          queue_remaining,
          servo_angle);
 }
@@ -324,6 +327,8 @@ void maybe_emit_periodic(float servo_angle, int queue_depth, bool servo_ready)
     const float frames_per_s = safe_divide(static_cast<float>(stats.frame_valid_count), elapsed_s);
     const float points_per_s = safe_divide(static_cast<float>(stats.points_valid_total), elapsed_s);
     const float bytes_per_s = safe_divide(static_cast<float>(stats.raw_bytes_received), elapsed_s);
+    const float payload_bytes_per_s = safe_divide(static_cast<float>(stats.payload_bytes_sent), elapsed_s);
+    const float websocket_frame_bytes_per_s = safe_divide(static_cast<float>(stats.websocket_frame_bytes_sent), elapsed_s);
     const uint64_t avg_frame_time = (stats.frame_valid_count > 0)
         ? stats.total_frame_time_us / stats.frame_valid_count
         : 0;
@@ -335,7 +340,7 @@ void maybe_emit_periodic(float servo_angle, int queue_depth, bool servo_ready)
         : 0;
 
     emit("telemetry", "stats",
-         "elapsed_s=%.3f|bytes_received=%llu|bytes_processed=%llu|frames_received=%llu|frames_valid=%llu|frames_crc_error=%llu|frames_header_error=%llu|parser_resyncs=%llu|points_total=%llu|points_dropped=%llu|frames_per_s=%.3f|points_per_s=%.3f|bytes_per_s=%.3f|avg_frame_time_us=%llu|avg_parse_time_us=%llu|avg_uart_poll_time_us=%llu|max_queue_depth=%d|queue_depth=%d|servo_deg=%.1f|servo_ready=%d|sample_count=%llu|sweep_passes=%llu|sweep_cycles=%llu",
+         "elapsed_s=%.3f|bytes_received=%llu|bytes_processed=%llu|frames_received=%llu|frames_valid=%llu|frames_crc_error=%llu|frames_header_error=%llu|parser_resyncs=%llu|points_total=%llu|points_dropped=%llu|frames_per_s=%.3f|points_per_s=%.3f|bytes_per_s=%.3f|payload_bytes_sent=%llu|payload_bytes_per_s=%.3f|websocket_frame_bytes_sent=%llu|websocket_frame_bytes_per_s=%.3f|batch_failures=%llu|avg_frame_time_us=%llu|avg_parse_time_us=%llu|avg_uart_poll_time_us=%llu|max_queue_depth=%d|queue_depth=%d|servo_deg=%.1f|servo_ready=%d|sample_count=%llu|sweep_passes=%llu|sweep_cycles=%llu",
          elapsed_s,
          stats.raw_bytes_received,
          stats.bytes_processed,
@@ -349,6 +354,11 @@ void maybe_emit_periodic(float servo_angle, int queue_depth, bool servo_ready)
          frames_per_s,
          points_per_s,
          bytes_per_s,
+         stats.payload_bytes_sent,
+         payload_bytes_per_s,
+         stats.websocket_frame_bytes_sent,
+         websocket_frame_bytes_per_s,
+         stats.batch_send_failures,
          avg_frame_time,
          avg_parse_time,
          avg_uart_poll_time,
@@ -368,6 +378,10 @@ void emit_summary(const char *reason, float servo_angle, int queue_depth)
     const float frames_per_s = safe_divide(static_cast<float>(stats.frame_valid_count), elapsed_s);
     const float points_per_s = safe_divide(static_cast<float>(stats.points_valid_total), elapsed_s);
     const float bytes_per_s = safe_divide(static_cast<float>(stats.raw_bytes_received), elapsed_s);
+    const float payload_bytes_per_s = safe_divide(static_cast<float>(stats.payload_bytes_sent), elapsed_s);
+    const float websocket_frame_bytes_per_s = safe_divide(static_cast<float>(stats.websocket_frame_bytes_sent), elapsed_s);
+    const float avg_payload_bytes_per_batch = safe_divide(static_cast<float>(stats.payload_bytes_sent), static_cast<float>(stats.batches_sent));
+    const float avg_websocket_frame_bytes_per_batch = safe_divide(static_cast<float>(stats.websocket_frame_bytes_sent), static_cast<float>(stats.batches_sent));
     const float success_rate = safe_divide(static_cast<float>(stats.frame_valid_count) * 100.0f,
                                            static_cast<float>(stats.frame_candidate_count));
     const float error_rate = safe_divide(static_cast<float>(stats.frame_crc_error_count + stats.header_miss_count) * 100.0f,
@@ -383,7 +397,7 @@ void emit_summary(const char *reason, float servo_angle, int queue_depth)
         : 0;
 
     emit("telemetry", "summary",
-         "reason=%s|duration_s=%.3f|bytes_received=%llu|bytes_processed=%llu|frames_received=%llu|frames_valid=%llu|frames_crc_error=%llu|frames_header_error=%llu|parser_resyncs=%llu|points_total=%llu|point_events=%llu|points_dropped=%llu|frames_per_s=%.3f|points_per_s=%.3f|bytes_per_s=%.3f|avg_frame_time_us=%llu|min_frame_time_us=%llu|max_frame_time_us=%llu|avg_parse_time_us=%llu|avg_uart_poll_time_us=%llu|success_rate_pct=%.3f|error_rate_pct=%.3f|samples_completed=%llu|servo_moves=%llu|sweep_passes=%llu|sweep_cycles=%llu|batches_sent=%llu|batch_failures=%llu|payload_bytes_sent=%llu|max_queue_depth=%d|queue_depth=%d|servo_deg=%.1f",
+         "reason=%s|duration_s=%.3f|bytes_received=%llu|bytes_processed=%llu|frames_received=%llu|frames_valid=%llu|frames_crc_error=%llu|frames_header_error=%llu|parser_resyncs=%llu|points_total=%llu|point_events=%llu|points_dropped=%llu|frames_per_s=%.3f|points_per_s=%.3f|bytes_per_s=%.3f|payload_bytes_sent=%llu|payload_bytes_per_s=%.3f|websocket_frame_bytes_sent=%llu|websocket_frame_bytes_per_s=%.3f|avg_payload_bytes_per_batch=%.3f|avg_websocket_frame_bytes_per_batch=%.3f|avg_frame_time_us=%llu|min_frame_time_us=%llu|max_frame_time_us=%llu|avg_parse_time_us=%llu|avg_uart_poll_time_us=%llu|success_rate_pct=%.3f|error_rate_pct=%.3f|samples_completed=%llu|servo_moves=%llu|sweep_passes=%llu|sweep_cycles=%llu|batches_sent=%llu|batch_failures=%llu|max_queue_depth=%d|queue_depth=%d|servo_deg=%.1f",
          reason,
          elapsed_s,
          stats.raw_bytes_received,
@@ -399,6 +413,12 @@ void emit_summary(const char *reason, float servo_angle, int queue_depth)
          frames_per_s,
          points_per_s,
          bytes_per_s,
+         stats.payload_bytes_sent,
+         payload_bytes_per_s,
+         stats.websocket_frame_bytes_sent,
+         websocket_frame_bytes_per_s,
+         avg_payload_bytes_per_batch,
+         avg_websocket_frame_bytes_per_batch,
          avg_frame_time,
          stats.min_frame_time_us,
          stats.max_frame_time_us,
@@ -412,7 +432,6 @@ void emit_summary(const char *reason, float servo_angle, int queue_depth)
          stats.sweep_cycle_count,
          stats.batches_sent,
          stats.batch_send_failures,
-         stats.payload_bytes_sent,
          stats.max_queue_depth,
          queue_depth,
          servo_angle);

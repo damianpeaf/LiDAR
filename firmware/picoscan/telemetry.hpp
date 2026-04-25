@@ -50,7 +50,7 @@ bool point_target_reached();
 
 void note_point_dropped();
 void note_queue_depth(int depth);
-void note_batch_sent(int points_in_payload, int payload_bytes, int queue_remaining, float servo_angle);
+void note_batch_sent(int points_in_payload, int payload_bytes, int websocket_frame_bytes, int queue_remaining, float servo_angle);
 void note_batch_send_failed(const char *reason, int queue_depth);
 
 void note_sample_complete(float servo_angle, int sample_index, int points_in_sample);

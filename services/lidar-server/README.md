@@ -36,6 +36,9 @@ python main.py
 Archivos relacionados disponibles en:
 
 - `../../data/services/lidar-server/performance_reports/`
+- `../../data/services/lidar-server/network_telemetry.csv` — telemetría acumulada de unidades, payload recibido y bytes estimados de trama WebSocket para la Tabla 4.
+
+La ruta del CSV de red puede sobrescribirse con `NETWORK_TELEMETRY_CSV`.
 
 ## Archivos clave
 

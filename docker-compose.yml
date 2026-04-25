@@ -13,8 +13,11 @@ services:
       context: ./services/lidar-server
     environment:
       REDIS_URL: redis://redis:6379/0
+      NETWORK_TELEMETRY_CSV: /data/lidar-server/network_telemetry.csv
     ports:
       - "3000:3000"
+    volumes:
+      - ./data/services/lidar-server:/data/lidar-server
     depends_on:
       - redis
     restart: unless-stopped

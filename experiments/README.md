@@ -25,6 +25,7 @@ Documentación completa de todos los experimentos realizados para la tesis.
 | 2C | Escaneo 3D objeto referencia (Python) | 2 | ⬜ Pendiente | [→](fase2_ld19_micropython/exp2c_scan_referencia/README.md) |
 | 3A | Benchmark TF-Mini S | 3 | ⬜ Pendiente | [→](fase3_tfminis/exp3a_benchmark/README.md) |
 | 3B | Precisión TF-Mini S | 3 | ⬜ Pendiente | [→](fase3_tfminis/exp3b_precision/README.md) |
+| NET1 | Comparativa transmisión por red | 1/2 | ⬜ Pendiente | [→](exp_red_transmision/README.md) |
 | 4A | Escaneo arqueológico posición única | 4 | ⬜ Pendiente | [→](fase4_arqueologia/exp4a_scan_espacio/README.md) |
 | 4B | Validación dimensional modelo | 4 | ⬜ Pendiente | [→](fase4_arqueologia/exp4b_validacion/README.md) |
 | 4C | Registro multi-posición arqueológico | 4 | ⬜ Pendiente | [→](fase4_arqueologia/exp4c_multipos/README.md) |
@@ -47,6 +48,7 @@ Documentación completa de todos los experimentos realizados para la tesis.
 | T8 | Comparativa densidad nube 3D: LD19-C vs. LD19-Python vs. TF-Mini S | 1C + 2C + sesiones existentes |
 | T9 | Validación modelo 3D — dimensiones reales vs. modelo vs. error | 1C + 4B |
 | T10 | Resumen aplicación arqueológica — posiciones, puntos, tiempo, error | 4A + 4B + 4C |
+| docs T4 | Comparativa de transmisión de datos por red | NET1 + telemetría del server |
 
 ### Gráficas para el capítulo 4
 
@@ -72,6 +74,7 @@ Documentación completa de todos los experimentos realizados para la tesis.
 | `data/scripts/analizar_benchmark.py` | G1, G2, G3, T2, T3, T4, G12 | Reportes .txt de 1A, 2A, 3A |
 | `data/scripts/analizar_precision.py` | G4, G5, G6, T5, T6, T7 | CSVs de 1B, 2B, 3B |
 | `data/scripts/analizar_nubes.py` | T8, G7, G8, G9 | JSONs de 1C, 2C |
+| `data/scripts/analizar_red.py` | Tabla 4 de `docs/resultados/README.md` | CSV del server + resumen EXP del firmware |
 
 ---
 
@@ -83,6 +86,7 @@ Documentación completa de todos los experimentos realizados para la tesis.
     1B  Precisión LD19 con C (5 distancias × 300)   ~45 min
     1C  Escaneo 3D caja referencia (C SDK)           ~45 min
     1D  Registro multi-posición referencia           ~45 min
+    NET1-C Transmisión por red C SDK                  ~15 min
     ── Viaje a Huehuetenango ──
     4A  Escaneo arqueológico posición única       ─┐
     4B  Validación dimensional                     ├─ En campo
@@ -90,6 +94,7 @@ Documentación completa de todos los experimentos realizados para la tesis.
 
 [Sin desarmar — cambiar firmware a MicroPython]
     2A  Benchmark MicroPython (60s × 3 reps)         ~30 min
+    NET1-PY Transmisión por red MicroPython           ~15 min
     2B  Precisión LD19 con Python (5 distancias)     ~45 min
     2C  Escaneo 3D caja referencia (MicroPython)     ~45 min
 

@@ -307,12 +307,15 @@ bool TCPClient::send_points_batch(int batch_size)
             break;
         }
 
+        if (payload_len + BINARY_POINT_RECORD_SIZE > MAX_BINARY_PAYLOAD_SIZE)
+        {
+            break;
+        }
+
         if (!append_u16_le(payload_buffer, MAX_BINARY_PAYLOAD_SIZE, payload_len, point.distance_mm) ||
             !append_u8(payload_buffer, MAX_BINARY_PAYLOAD_SIZE, payload_len, point.intensity) ||
             !append_u16_le(payload_buffer, MAX_BINARY_PAYLOAD_SIZE, payload_len, point.pan_angle_tenths))
         {
-            printf("Binary payload reached safe WebSocket limit; current point stays queued for the next send\n");
-            telemetry::note_batch_send_failed("payload_safe_limit", points_count);
             break;
         }
 
@@ -352,7 +355,7 @@ bool TCPClient::send_points_batch(int batch_size)
                    points_in_payload,
                    static_cast<float>(servo_angle_tenths) / 10.0f,
                    remaining);
-            telemetry::note_batch_sent(points_in_payload, payload_len, remaining, static_cast<float>(servo_angle_tenths) / 10.0f);
+            telemetry::note_batch_sent(points_in_payload, payload_len, tx_buffer_len, remaining, static_cast<float>(servo_angle_tenths) / 10.0f);
             drop_queued_points(points_in_payload);
             return true;
         }
