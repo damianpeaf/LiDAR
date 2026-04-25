@@ -7,9 +7,10 @@
 ## Setup
 
 - Sensor: LD19 conectado a Pico W.
+- Servo: GP15, mismo barrido que SDK de C para preservar `inclination`/`servo_deg`.
 - Servidor: `services/lidar-server/main.py` corriendo en la misma red WiFi.
 - Artefacto del server: `data/services/lidar-server/network_telemetry.csv`.
-- Artefacto del firmware C: log serial con líneas `EXP|...|component=telemetry|event=summary`.
+- Artefacto del firmware: log serial con líneas `EXP|...|component=telemetry|event=summary`.
 - Duración sugerida: 60 s por implementación.
 - Repeticiones sugeridas: 3 por implementación si el tiempo alcanza; si no, registrar una corrida y marcarla como exploratoria.
 
@@ -17,7 +18,7 @@
 
 La unidad primaria es el mensaje recibido por el servidor:
 
-- MicroPython: mensaje WebSocket JSON/texto con `points`.
+- MicroPython: mensaje WebSocket JSON/texto con `inclination` y `points`.
 - SDK de C: lote binario WebSocket con header `PS` y registros compactos de puntos.
 
 El server acumula por corrida:
@@ -31,10 +32,11 @@ El server acumula por corrida:
 - puntos parseados y procesados;
 - fallas de parseo, Redis y broadcast.
 
-El firmware C además acumula:
+El firmware además acumula:
 
 - `batches_sent`;
 - `batch_failures`;
+- `messages_sent` / `send_failures` en MicroPython;
 - `payload_bytes_sent`;
 - `websocket_frame_bytes_sent`;
 - throughput de payload y de trama WebSocket.
@@ -43,11 +45,26 @@ El firmware C además acumula:
 
 1. Borrar o renombrar `data/services/lidar-server/network_telemetry.csv` antes de cada corrida para que el CSV represente una sola medición.
 2. Levantar Redis y el server con el procedimiento de `services/lidar-server/README.md`.
-3. Iniciar captura del log serial del Pico.
-4. Ejecutar la implementación correspondiente durante 60 s.
-5. Detener la captura y guardar el log crudo.
-6. Tomar la última fila del CSV del server como resumen de la corrida.
-7. Para SDK de C, tomar también la línea `EXP|...|event=summary` del firmware y contrastar `payload_bytes_sent` contra `sensor_bytes` del server.
+3. Para MicroPython, copiar `experiments/ld19/network_exp.py` como `main.py` en la Pico W.
+4. Iniciar captura del log serial del Pico.
+5. Ejecutar la implementación correspondiente durante 60 s.
+6. Detener la captura y guardar el log crudo.
+7. Tomar la última fila del CSV del server como resumen de la corrida.
+8. Para SDK de C y MicroPython, tomar también la línea `EXP|...|event=summary` del firmware y contrastar `payload_bytes_sent` contra `sensor_bytes` del server.
+
+## Captura MicroPython recomendada
+
+Desde la raíz del repo:
+
+```powershell
+python data/scripts/capturar_serial_experimento.py --port COM6 --baud 115200 --timeout 90 --output-dir data/experiments/red --name micropython_network_rep1_serial --summary-csv-name micropython_network_summary.csv --label micropython_network_rep1 --stop-on-done
+```
+
+Después de cada corrida, preservar el CSV del server con un nombre específico, por ejemplo:
+
+```powershell
+Copy-Item data/services/lidar-server/network_telemetry.csv data/experiments/red/micropython_network_rep1_server.csv
+```
 
 ## CSV resumen sugerido
 
@@ -60,9 +77,11 @@ SDK de C,1,0,Lote binario WebSocket,0,0,0,0,0,0,0,0,0,data/services/lidar-server
 ## Entregables
 
 ```text
-data/experiments/red/micropython_network_rep1.csv
+data/experiments/red/micropython_network_rep1_server.csv
 data/experiments/red/micropython_network_rep1_serial.txt
-data/experiments/red/c_sdk_network_rep1.csv
+data/experiments/red/micropython_network_rep1_serial.json
+data/experiments/red/micropython_network_summary.csv
+data/experiments/red/c_sdk_network_rep1_server.csv
 data/experiments/red/c_sdk_network_rep1_serial.txt
 data/experiments/red/network_summary.csv
 ```
