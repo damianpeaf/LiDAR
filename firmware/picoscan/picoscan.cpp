@@ -11,6 +11,7 @@
 #include "setup_manager.hpp"
 #include "scan_controller.hpp"
 #include "servo_controller.hpp"
+#include "telemetry.hpp"
 #include "tcp_client.hpp"
 #include "wifi_manager.hpp"
 #include "uart_utils.hpp"
@@ -42,8 +43,26 @@ public:
         // Espera hasta 3s a que el host abra el puerto serial USB
         for (int i = 0; i < 30 && !stdio_usb_connected(); i++) sleep_ms(100);
 
+        TelemetryOptions telemetry_options;
+        telemetry_options.profile = CFG_EXPERIMENT_PROFILE;
+        telemetry_options.periodic_interval_ms = CFG_TELEMETRY_PERIODIC_INTERVAL_MS;
+
+        if (CFG_EXPERIMENT_PROFILE == ExperimentProfile::Benchmark) {
+            telemetry_options.servo_enabled = false;
+            telemetry_options.network_enabled = false;
+            telemetry_options.target_duration_s = CFG_BENCHMARK_DURATION_SECONDS;
+        } else if (CFG_EXPERIMENT_PROFILE == ExperimentProfile::Precision) {
+            telemetry_options.servo_enabled = false;
+            telemetry_options.network_enabled = false;
+            telemetry_options.target_point_events = CFG_PRECISION_TARGET_POINTS;
+            telemetry_options.point_stride = CFG_TELEMETRY_POINT_STRIDE;
+        }
+
+        telemetry::init(telemetry_options);
+
         bool forced  = is_setup_forced();
         bool has_cfg = ConfigStore::load(cfg_);
+        telemetry::note_boot(forced, has_cfg);
 
         if (forced || !has_cfg) {
             run_setup();
@@ -55,25 +74,54 @@ public:
         }
 
         init_uart();
-        servo_.init();
-
-        state_.transition_to(DeviceState::CONNECTING_WIFI);
-        if (!init_wifi()) {
-            state_.transition_to(DeviceState::ERROR);
-            return false;
-        }
-
-        state_.transition_to(DeviceState::WIFI_READY);
-        state_.transition_to(DeviceState::CONNECTING_CLOUD);
-        if (!init_network()) {
-            state_.transition_to(DeviceState::ERROR);
-            return false;
-        }
-
-        state_.transition_to(DeviceState::IDLE);
 
         ScanParams p;
         p.batch_size = cfg_.batch_size;
+
+        if (CFG_EXPERIMENT_PROFILE == ExperimentProfile::Scan) {
+            p.enable_servo = true;
+            p.enable_network = true;
+            p.emit_point_events = false;
+        } else if (CFG_EXPERIMENT_PROFILE == ExperimentProfile::Benchmark) {
+            p.enable_servo = false;
+            p.enable_network = false;
+            p.emit_point_events = false;
+            p.target_duration_s = CFG_BENCHMARK_DURATION_SECONDS;
+        } else {
+            p.enable_servo = false;
+            p.enable_network = false;
+            p.emit_point_events = true;
+            p.filter_point_events_by_angle = true;
+            p.point_event_angle_center_deg = CFG_PRECISION_ANGLE_CENTER_DEG;
+            p.point_event_angle_half_width_deg = CFG_PRECISION_ANGLE_HALF_WIDTH_DEG;
+            p.target_point_events = CFG_PRECISION_TARGET_POINTS;
+        }
+
+        telemetry::note_config_loaded(cfg_.wifi_ssid, cfg_.tcp_ip, cfg_.tcp_port, cfg_.batch_size);
+
+        if (p.enable_servo) {
+            servo_.init();
+        }
+
+        if (p.enable_network) {
+            state_.transition_to(DeviceState::CONNECTING_WIFI);
+            if (!init_wifi()) {
+                state_.transition_to(DeviceState::ERROR);
+                return false;
+            }
+
+            state_.transition_to(DeviceState::WIFI_READY);
+            state_.transition_to(DeviceState::CONNECTING_CLOUD);
+            if (!init_network()) {
+                state_.transition_to(DeviceState::ERROR);
+                return false;
+            }
+
+            state_.transition_to(DeviceState::IDLE);
+        } else {
+            state_.transition_to(DeviceState::IDLE);
+        }
+
         scan_.set_params(p);
 
         scan_.start();
@@ -85,20 +133,26 @@ public:
     void run()
     {
         while (true) {
-            tcp_.poll();
+            if (scan_.network_enabled()) {
+                tcp_.poll();
 
-            if (tcp_.is_disconnected()) {
-                tcp_.connect_to_server();
-                sleep_ms(1000);
-                continue;
-            }
+                if (tcp_.is_disconnected()) {
+                    tcp_.connect_to_server();
+                    sleep_ms(1000);
+                    continue;
+                }
 
-            if (!tcp_.is_connected()) {
-                sleep_ms(10);
-                continue;
+                if (!tcp_.is_connected()) {
+                    sleep_ms(10);
+                    continue;
+                }
             }
 
             scan_.update();
+
+            if (!scan_.is_running()) {
+                sleep_ms(50);
+            }
         }
     }
 

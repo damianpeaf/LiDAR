@@ -1,5 +1,6 @@
 #include <cstdio>
 #include "device_state_manager.hpp"
+#include "telemetry.hpp"
 
 DeviceStateManager::DeviceStateManager() : state_(DeviceState::BOOT) {}
 
@@ -8,6 +9,7 @@ DeviceState DeviceStateManager::get_state() const { return state_; }
 void DeviceStateManager::transition_to(DeviceState next)
 {
     printf("[device] %s → %s\n", state_name(), DeviceStateManager::name_of(next));
+    telemetry::note_state_transition(state_name(), DeviceStateManager::name_of(next));
     state_ = next;
 }
 

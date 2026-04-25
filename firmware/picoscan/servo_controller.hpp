@@ -21,6 +21,8 @@ private:
     int direction;
     int samples_collected;
     int points_in_sample;
+    uint32_t sweep_passes;
+    uint32_t sweep_cycles;
     float last_lidar_angle;
     bool waiting_for_rotation;
     State state;

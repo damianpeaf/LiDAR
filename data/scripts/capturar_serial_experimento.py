@@ -70,6 +70,14 @@ def append_csv(path: Path, row: dict) -> None:
         writer.writerow(row)
 
 
+def event_csv_row(event: dict, preferred_keys: list[str]) -> dict:
+    row = {key: event.get(key, "") for key in preferred_keys}
+    for key, value in event.items():
+        if key not in row:
+            row[key] = value
+    return row
+
+
 def build_summary(final_event, metadata, raw_log_path: Path):
     try:
         raw_log_value = str(raw_log_path.relative_to(REPO_ROOT))
@@ -95,6 +103,16 @@ def run_capture(args):
     raw_log_path = output_dir / f"{stem}.txt"
     parsed_json_path = output_dir / f"{stem}.json"
     summary_csv_path = output_dir / args.summary_csv_name
+    points_csv_path = output_dir / f"{stem}_points.csv"
+
+    protected_outputs = [raw_log_path, parsed_json_path, points_csv_path]
+    existing_outputs = [path for path in protected_outputs if path.exists()]
+    if existing_outputs and not args.overwrite:
+        print("No voy a sobrescribir capturas existentes:", file=sys.stderr)
+        for path in existing_outputs:
+            print(f"  {path}", file=sys.stderr)
+        print("Usa otro --name o agrega --overwrite si de verdad queres reemplazarlas.", file=sys.stderr)
+        return 2
 
     metadata = {
         "port": args.port,
@@ -146,6 +164,27 @@ def run_capture(args):
 
                     if parsed.get("event") == "report":
                         final_report = parsed
+                    if parsed.get("event") == "summary":
+                        final_report = parsed
+                    if parsed.get("event") == "point":
+                        append_csv(
+                            points_csv_path,
+                            event_csv_row(
+                                parsed,
+                                [
+                                    "host_timestamp_utc",
+                                    "label",
+                                    "profile",
+                                    "component",
+                                    "event",
+                                    "index",
+                                    "pan_deg",
+                                    "distance_mm",
+                                    "intensity",
+                                    "servo_deg",
+                                ],
+                            ),
+                        )
                     if parsed.get("event") == "done":
                         done_seen = True
                         if args.stop_on_done:
@@ -187,6 +226,7 @@ def build_parser():
     parser.add_argument("--summary-csv-name", default="bench_c_summary.csv", help="Nombre del CSV resumen")
     parser.add_argument("--label", default="", help="Etiqueta opcional para la corrida, por ejemplo rep1")
     parser.add_argument("--stop-on-done", action="store_true", help="Corta cuando llega EXP|event=done")
+    parser.add_argument("--overwrite", action="store_true", help="Permite reemplazar archivos RAW/JSON/points existentes")
     return parser
 
 

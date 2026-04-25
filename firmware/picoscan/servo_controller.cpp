@@ -1,10 +1,11 @@
 #include "servo_controller.hpp"
 #include <cstdio>
 #include <cmath>
+#include "telemetry.hpp"
 
 ServoController::ServoController(uint pin) 
     : gpio_pin(pin), current_pulse(SERVO_MIN_PULSE), direction(1),
-      samples_collected(0), points_in_sample(0), last_lidar_angle(-1.0f),
+      samples_collected(0), points_in_sample(0), sweep_passes(0), sweep_cycles(0), last_lidar_angle(-1.0f),
       waiting_for_rotation(false), state(State::Sampling), settle_deadline(nil_time)
 {
 }
@@ -28,6 +29,7 @@ void ServoController::update()
     if (state == State::Settling && time_reached(settle_deadline))
     {
         state = State::Sampling;
+        telemetry::note_servo_settled(pulse_to_degrees(current_pulse));
         printf("Servo settled at %.1f degrees, resuming sampling...\n",
                pulse_to_degrees(current_pulse));
     }
@@ -46,23 +48,33 @@ void ServoController::set_pulse_us(uint pulse_us)
 
 void ServoController::move_to_next_position()
 {
+    const float from_angle = pulse_to_degrees(current_pulse);
     current_pulse += direction * SERVO_STEP_SIZE;
+    const char *endpoint = "none";
 
     if (current_pulse >= SERVO_MAX_PULSE)
     {
         current_pulse = SERVO_MAX_PULSE;
         direction = -1;
+        endpoint = "max";
+        sweep_passes++;
+        telemetry::note_scan_cycle_event("scan_pass_complete", pulse_to_degrees(current_pulse), sweep_passes, sweep_cycles);
     }
     else if (current_pulse <= SERVO_MIN_PULSE)
     {
         current_pulse = SERVO_MIN_PULSE;
         direction = 1;
+        endpoint = "min";
+        sweep_passes++;
+        sweep_cycles++;
+        telemetry::note_scan_cycle_event("scan_cycle_complete", pulse_to_degrees(current_pulse), sweep_passes, sweep_cycles);
     }
 
     set_pulse_us(current_pulse);
     reset_sampling_state();
     state = State::Settling;
     settle_deadline = make_timeout_time_ms(SERVO_SETTLE_MS);
+    telemetry::note_servo_move(from_angle, pulse_to_degrees(current_pulse), endpoint, direction);
 
     printf("Servo moved to pulse %d (%.1f degrees), settling...\n",
            current_pulse, pulse_to_degrees(current_pulse));
@@ -94,6 +106,7 @@ bool ServoController::check_complete_lidar_rotation(float current_angle)
             int completed_points = points_in_sample;
             points_in_sample = 0;
             waiting_for_rotation = false;
+            telemetry::note_sample_complete(pulse_to_degrees(current_pulse), samples_collected, completed_points);
 
             printf("Sample %d completed at servo angle %.1f degrees (%d points)\n",
                    samples_collected, pulse_to_degrees(current_pulse), completed_points);

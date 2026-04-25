@@ -7,6 +7,14 @@
 
 struct ScanParams {
     int batch_size = 100;
+    bool enable_servo = true;
+    bool enable_network = true;
+    bool emit_point_events = false;
+    bool filter_point_events_by_angle = false;
+    float point_event_angle_center_deg = 0.0f;
+    float point_event_angle_half_width_deg = 0.0f;
+    uint32_t target_duration_s = 0;
+    uint32_t target_point_events = 0;
 };
 
 class ScanController {
@@ -25,6 +33,7 @@ public:
     bool is_stopped() const;
 
     void set_params(const ScanParams& params);
+    bool network_enabled() const;
 
 private:
     static constexpr int BACKPRESSURE_LOG_INTERVAL = 500;
@@ -41,4 +50,5 @@ private:
 
     void process_lidar_frame();
     void handle_transmission();
+    bool should_emit_point(float angle) const;
 };

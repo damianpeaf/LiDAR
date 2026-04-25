@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <cmath>
+#include <cinttypes>
 
 // Constantes LIDAR
 constexpr uint8_t HEADER = 0x54;
@@ -29,12 +30,13 @@ class LidarFrameParser
 public:
     LidarFrameParser();
 
-    bool push_byte(uint8_t byte, uint8_t *complete_frame);
+    bool push_byte(uint8_t byte, uint8_t *complete_frame, uint64_t *frame_time_us);
     void reset();
 
 private:
     uint8_t frame_[FRAME_SIZE];
     size_t bytes_collected_;
+    uint64_t frame_started_us_;
 
     void resync_after_invalid_frame();
 };

@@ -41,6 +41,7 @@ add_executable(picoscan
     lidar.cpp
     uart_utils.cpp
     servo_controller.cpp
+    telemetry.cpp
     tcp_client.cpp
     wifi_manager.cpp
     device_state_manager.cpp

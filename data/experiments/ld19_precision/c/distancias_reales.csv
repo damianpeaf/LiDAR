@@ -1,0 +1,5 @@
+captura,distancia_nominal_cm,distancia_real_mm,ventana_centro_deg,ventana_semiancho_deg,observaciones
+d055cm,55,550,180,5,
+d080cm,80,800,180,5,
+d110cm,110,1100,180,5,
+d140cm,140,1400,180,5,limite de espacio disponible en laboratorio

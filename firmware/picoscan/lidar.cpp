@@ -1,5 +1,7 @@
 #include <cstdio>
 #include "lidar.hpp"
+#include "pico/time.h"
+#include "telemetry.hpp"
 
 // Tabla CRC (igual que en C)
 static const uint8_t CRC_TABLE[256] = {
@@ -35,13 +37,14 @@ bool is_valid_lidar_frame(const uint8_t *frame)
     return frame[0] == HEADER && calc_crc8(frame, FRAME_SIZE - 1) == frame[FRAME_SIZE - 1];
 }
 
-LidarFrameParser::LidarFrameParser() : frame_{0}, bytes_collected_(0)
+LidarFrameParser::LidarFrameParser() : frame_{0}, bytes_collected_(0), frame_started_us_(0)
 {
 }
 
 void LidarFrameParser::reset()
 {
     bytes_collected_ = 0;
+    frame_started_us_ = 0;
 }
 
 void LidarFrameParser::resync_after_invalid_frame()
@@ -70,17 +73,21 @@ void LidarFrameParser::resync_after_invalid_frame()
     }
 
     bytes_collected_ = remaining_bytes;
+    frame_started_us_ = time_us_64();
+    telemetry::note_parser_resync(remaining_bytes);
 }
 
-bool LidarFrameParser::push_byte(uint8_t byte, uint8_t *complete_frame)
+bool LidarFrameParser::push_byte(uint8_t byte, uint8_t *complete_frame, uint64_t *frame_time_us)
 {
     if (bytes_collected_ == 0)
     {
         if (byte != HEADER)
         {
+            telemetry::note_header_miss();
             return false;
         }
 
+        frame_started_us_ = time_us_64();
         frame_[bytes_collected_++] = byte;
         return false;
     }
@@ -94,6 +101,13 @@ bool LidarFrameParser::push_byte(uint8_t byte, uint8_t *complete_frame)
 
     if (is_valid_lidar_frame(frame_))
     {
+        const uint64_t elapsed_us = time_us_64() - frame_started_us_;
+        if (frame_time_us != nullptr)
+        {
+            *frame_time_us = elapsed_us;
+        }
+        telemetry::note_frame_candidate();
+
         for (size_t i = 0; i < FRAME_SIZE; i++)
         {
             complete_frame[i] = frame_[i];
@@ -103,6 +117,9 @@ bool LidarFrameParser::push_byte(uint8_t byte, uint8_t *complete_frame)
         return true;
     }
 
+    const uint64_t elapsed_us = time_us_64() - frame_started_us_;
+    telemetry::note_frame_candidate();
+    telemetry::note_frame_crc_error(elapsed_us);
     resync_after_invalid_frame();
     return false;
 }
@@ -111,7 +128,6 @@ int parse_points(const uint8_t *frame, LidarPoint *points)
 {
     if (!is_valid_lidar_frame(frame))
     {
-        printf("CRC check failed\n");
         return 0;
     }
 
