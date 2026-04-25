@@ -9,7 +9,7 @@
 Idéntico al experimento 1A — solo cambia el firmware:
 
 - Sensor: LD19 conectado a Pico W, sin servo activo
-- Firmware: script MicroPython de benchmark (sin WiFi, solo serial)
+- Firmware: `experiments/ld19/bench_exp.py` copiado como `main.py` en la Pico W (sin WiFi, solo serial)
 - Sensor apuntando a pared plana a ~50 cm, ángulo perpendicular
 - Duración: 60 segundos por repetición
 - Repeticiones: 3 (reiniciar firmware entre cada una)
@@ -23,6 +23,7 @@ Idéntico al experimento 1A — solo cambia el firmware:
 - frames válidos / procesados
 - frames inválidos por CRC
 - frames inválidos por header o desincronización
+- bytes descartados buscando header (`header_miss_count`)
 - puntos totales procesados
 - frames/s
 - puntos/s
@@ -38,13 +39,17 @@ Idéntico al experimento 1A — solo cambia el firmware:
 ### Resumen sugerido (`bench_py_summary.csv`)
 
 ```csv
-repeticion,duracion_s,frames_recibidos,frames_validos,frames_crc_error,frames_header_error,puntos_totales,frames_por_s,puntos_por_s,bytes_por_s,tiempo_promedio_frame_us,ram_libre_bytes,pct_frames_validos,observaciones
-1,60.0,0,0,0,0,0,0,0,0,0,,0,
+repeticion,duracion_s,frames_recibidos,frames_validos,frames_crc_error,frames_header_error,frames_size_error,header_miss_count,puntos_totales,frames_por_s,puntos_por_s,bytes_por_s,tiempo_promedio_frame_us,ram_libre_inicio,ram_libre_fin,pct_frames_validos,pct_frames_error,observaciones
+1,60.0,0,0,0,0,0,0,0,0,0,0,0,,,0,0,
 ```
+
+`header_miss_count` cuenta bytes descartados durante resincronización, no frames completos. Por eso no debe sumarse a `pct_frames_error`, que solo usa errores de frame (`frames_crc_error`, `frames_header_error`, `frames_size_error`) sobre `frames_recibidos`.
 
 ## Checklist
 
-- [ ] Script MicroPython de benchmark listo y verificado
+- [ ] MicroPython instalado en la Pico W
+- [ ] `experiments/ld19/bench_exp.py` copiado como `main.py`
+- [ ] Captura serial con `data/scripts/capturar_serial_experimento.py`
 - [ ] Repetición 1 — reporte guardado
 - [ ] Repetición 2 — reporte guardado
 - [ ] Repetición 3 — reporte guardado
@@ -59,6 +64,16 @@ data/experiments/ld19_micropython/bench_py_rep2.txt
 data/experiments/ld19_micropython/bench_py_rep3.txt
 data/experiments/ld19_micropython/bench_py_summary.csv
 ```
+
+## Captura recomendada
+
+Desde la raíz del repo:
+
+```powershell
+python data/scripts/capturar_serial_experimento.py --port COM3 --baud 115200 --timeout 90 --output-dir data/experiments/ld19_micropython --name bench_py_rep1 --summary-csv-name bench_py_summary.csv --label rep1 --stop-on-done
+```
+
+Repetir cambiando `rep1` por `rep2` y `rep3`.
 
 ## Análisis que habilita
 

@@ -1,7 +1,7 @@
 # Fase 2 — LD19 con MicroPython
 
 **Hardware:** LD19 + servo + Pico W (mismo dispositivo que Fase 1, NO desarmar)
-**Firmware:** MicroPython — adaptar `experiments/lidar/device/init.py`
+**Firmware:** MicroPython — benchmark en `experiments/ld19/bench_exp.py`; escaneo/red desde scripts LD19 históricos adaptados
 **Estado del dispositivo:** NO DESARMAR durante esta fase
 
 ## Prerrequisito crítico
