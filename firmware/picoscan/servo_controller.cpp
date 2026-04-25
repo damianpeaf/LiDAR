@@ -4,10 +4,23 @@
 #include "telemetry.hpp"
 
 ServoController::ServoController(uint pin) 
-    : gpio_pin(pin), current_pulse(SERVO_MIN_PULSE), direction(1),
+    : gpio_pin(pin), current_pulse(SERVO_MIN_PULSE), min_pulse(SERVO_MIN_PULSE), max_pulse(SERVO_MAX_PULSE), direction(1),
       samples_collected(0), points_in_sample(0), sweep_passes(0), sweep_cycles(0), last_lidar_angle(-1.0f),
       waiting_for_rotation(false), state(State::Sampling), settle_deadline(nil_time)
 {
+}
+
+void ServoController::configure_sweep(float min_angle_deg, float max_angle_deg)
+{
+    if (min_angle_deg < 0.0f) min_angle_deg = 0.0f;
+    if (max_angle_deg > 180.0f) max_angle_deg = 180.0f;
+    if (max_angle_deg < min_angle_deg) max_angle_deg = min_angle_deg;
+
+    min_pulse = SERVO_MIN_PULSE + (uint)((SERVO_MAX_PULSE - SERVO_MIN_PULSE) * (min_angle_deg / 180.0f));
+    max_pulse = SERVO_MIN_PULSE + (uint)((SERVO_MAX_PULSE - SERVO_MIN_PULSE) * (max_angle_deg / 180.0f));
+    current_pulse = min_pulse;
+    direction = 1;
+    reset_sampling_state();
 }
 
 void ServoController::init()
@@ -52,17 +65,17 @@ void ServoController::move_to_next_position()
     current_pulse += direction * SERVO_STEP_SIZE;
     const char *endpoint = "none";
 
-    if (current_pulse >= SERVO_MAX_PULSE)
+    if (current_pulse >= max_pulse)
     {
-        current_pulse = SERVO_MAX_PULSE;
+        current_pulse = max_pulse;
         direction = -1;
         endpoint = "max";
         sweep_passes++;
         telemetry::note_scan_cycle_event("scan_pass_complete", pulse_to_degrees(current_pulse), sweep_passes, sweep_cycles);
     }
-    else if (current_pulse <= SERVO_MIN_PULSE)
+    else if (current_pulse <= min_pulse)
     {
-        current_pulse = SERVO_MIN_PULSE;
+        current_pulse = min_pulse;
         direction = 1;
         endpoint = "min";
         sweep_passes++;
@@ -126,6 +139,11 @@ bool ServoController::should_move_servo() const
 float ServoController::get_current_angle() const
 {
     return pulse_to_degrees(current_pulse);
+}
+
+uint32_t ServoController::get_sweep_passes() const
+{
+    return sweep_passes;
 }
 
 bool ServoController::is_ready_for_sampling() const

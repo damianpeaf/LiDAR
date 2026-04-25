@@ -54,18 +54,19 @@ bool ScanController::is_running() const { return state_ == State::RUNNING; }
 bool ScanController::is_paused()  const { return state_ == State::PAUSED;  }
 bool ScanController::is_stopped() const { return state_ == State::STOPPED; }
 
+bool ScanController::is_angle_inside_window(float angle) const
+{
+    float diff = fabsf(fmodf(angle - params_.point_event_angle_center_deg + 540.0f, 360.0f) - 180.0f);
+    return diff <= params_.point_event_angle_half_width_deg;
+}
+
 bool ScanController::should_emit_point(float angle) const
 {
     if (!params_.emit_point_events) {
         return false;
     }
 
-    if (!params_.filter_point_events_by_angle) {
-        return telemetry::should_emit_point_event();
-    }
-
-    float diff = fabsf(fmodf(angle - params_.point_event_angle_center_deg + 540.0f, 360.0f) - 180.0f);
-    if (diff > params_.point_event_angle_half_width_deg) {
+    if (params_.filter_point_events_by_angle && !is_angle_inside_window(angle)) {
         return false;
     }
 
@@ -115,12 +116,16 @@ void ScanController::process_lidar_frame()
                     points[i].angle < 0 || points[i].angle > 360)
                     continue;
 
-                if (should_emit_point(points[i].angle)) {
-                    telemetry::note_point_event(points[i].angle, points[i].distance, points[i].intensity, servo_angle);
-                }
-
                 if (params_.enable_servo && servo_.check_complete_lidar_rotation(points[i].angle)) {
                     printf("[scan] sample complete at servo %.1f°\n", servo_angle);
+                }
+
+                if (params_.discard_points_outside_angle_window && !is_angle_inside_window(points[i].angle)) {
+                    continue;
+                }
+
+                if (should_emit_point(points[i].angle)) {
+                    telemetry::note_point_event(points[i].angle, points[i].distance, points[i].intensity, servo_angle);
                 }
 
                 if (!params_.enable_network) {
@@ -149,14 +154,17 @@ void ScanController::process_lidar_frame()
 
     telemetry::maybe_emit_periodic(servo_.get_current_angle(), params_.enable_network ? tcp_.get_points_count() : 0, servo_.is_ready_for_sampling());
 
-    if ((params_.target_duration_s > 0 && telemetry::duration_reached()) ||
-        (params_.target_point_events > 0 && telemetry::point_target_reached())) {
-        telemetry::emit_summary(params_.target_duration_s > 0 ? "duration_reached" : "point_target_reached",
+    const bool duration_reached = params_.target_duration_s > 0 && telemetry::duration_reached();
+    const bool point_target_reached = params_.target_point_events > 0 && telemetry::point_target_reached();
+    const bool sweep_target_reached = params_.target_sweep_passes > 0 && servo_.get_sweep_passes() >= params_.target_sweep_passes;
+
+    if (duration_reached || point_target_reached || sweep_target_reached) {
+        const char *reason = duration_reached ? "duration_reached" : (point_target_reached ? "point_target_reached" : "sweep_target_reached");
+        telemetry::emit_summary(reason,
                                 servo_.get_current_angle(),
                                 params_.enable_network ? tcp_.get_points_count() : 0);
-        telemetry::emit("telemetry", "done", "reason=%s",
-                        params_.target_duration_s > 0 ? "duration_reached" : "point_target_reached");
-        telemetry::note_scan_stopped(params_.target_duration_s > 0 ? "duration_reached" : "point_target_reached");
+        telemetry::emit("telemetry", "done", "reason=%s", reason);
+        telemetry::note_scan_stopped(reason);
         state_ = State::STOPPED;
     }
 }

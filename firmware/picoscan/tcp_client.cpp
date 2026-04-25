@@ -20,7 +20,7 @@ constexpr uint8_t kBinaryBatchFlags = 0;
 // Referencia utilizada como punto de partida general
 // https://github.com/samjkent/picow-websocket
 
-TCPClient::TCPClient() : points_head(0), points_tail(0), points_count(0), tcp_pcb(nullptr), tx_buffer_len(0),
+TCPClient::TCPClient() : points_head(0), points_tail(0), points_count(0), tcp_pcb(nullptr), remote_port(3000), tx_buffer_len(0),
                           rx_buffer_len(0), connected(TCP_DISCONNECTED), handshake_complete(false)
 {
 }
@@ -28,6 +28,7 @@ TCPClient::TCPClient() : points_head(0), points_tail(0), points_count(0), tcp_pc
 void TCPClient::set_server_address(const char *ip, uint16_t port)
 {
     ip4addr_aton(ip, &remote_addr);
+    remote_port = port;
 }
 
 err_t TCPClient::tcp_client_sent_callback(void *arg, struct tcp_pcb *tpcb, u16_t len)
@@ -45,8 +46,12 @@ err_t TCPClient::tcp_client_connected_callback(void *arg, struct tcp_pcb *tpcb, 
         return err;
     }
 
+    char ip_buffer[24];
+    ip4addr_ntoa_r(&client->remote_addr, ip_buffer, sizeof(ip_buffer));
     client->tx_buffer_len = sprintf((char *)client->tx_buffer,
-                                    "GET / HTTP/1.1\r\nHost: 10.208.207.87:3000\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==\r\nSec-WebSocket-Protocol: chat, superchat\r\nSec-WebSocket-Version: 13\r\n\r\n");
+                                    "GET / HTTP/1.1\r\nHost: %s:%u\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==\r\nSec-WebSocket-Protocol: chat, superchat\r\nSec-WebSocket-Version: 13\r\n\r\n",
+                                    ip_buffer,
+                                    client->remote_port);
 
     err = tcp_write(client->tcp_pcb, client->tx_buffer, client->tx_buffer_len, TCP_WRITE_FLAG_COPY);
     client->connected = TCP_CONNECTED;
@@ -161,7 +166,7 @@ err_t TCPClient::connect_to_server()
     handshake_complete = false;
     cyw43_arch_lwip_begin();
     connected = TCP_CONNECTING;
-    err_t err = tcp_connect(tcp_pcb, &remote_addr, 3000, tcp_client_connected_callback);
+    err_t err = tcp_connect(tcp_pcb, &remote_addr, remote_port, tcp_client_connected_callback);
     cyw43_arch_lwip_end();
 
     telemetry::note_tcp_event("connect_attempt", err, points_count);

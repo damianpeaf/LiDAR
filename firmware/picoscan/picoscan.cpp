@@ -46,6 +46,9 @@ public:
         TelemetryOptions telemetry_options;
         telemetry_options.profile = CFG_EXPERIMENT_PROFILE;
         telemetry_options.periodic_interval_ms = CFG_TELEMETRY_PERIODIC_INTERVAL_MS;
+        if (CFG_EXPERIMENT_PROFILE == ExperimentProfile::Scan && CFG_SCAN_EMIT_POINT_EVENTS) {
+            telemetry_options.point_stride = CFG_TELEMETRY_POINT_STRIDE;
+        }
 
         if (CFG_EXPERIMENT_PROFILE == ExperimentProfile::Benchmark) {
             telemetry_options.servo_enabled = false;
@@ -64,13 +67,23 @@ public:
         bool has_cfg = ConfigStore::load(cfg_);
         telemetry::note_boot(forced, has_cfg);
 
-        if (forced || !has_cfg) {
+        if (forced) {
             run_setup();
             // run_setup() retorna cuando el usuario guardó config.
             // Reiniciamos para arrancar en modo operación limpio.
             printf("[main] reiniciando...\n");
             watchdog_enable(500, 1);
             while (true) tight_loop_contents();
+        }
+
+        if (!has_cfg) {
+            printf("[config] using compile-time defaults\n");
+            ConfigStore::fill_defaults(cfg_);
+        }
+
+        if (CFG_USE_COMPILE_TIME_NETWORK_DEFAULTS) {
+            printf("[config] overriding network config with compile-time defaults\n");
+            ConfigStore::fill_defaults(cfg_);
         }
 
         init_uart();
@@ -81,7 +94,12 @@ public:
         if (CFG_EXPERIMENT_PROFILE == ExperimentProfile::Scan) {
             p.enable_servo = true;
             p.enable_network = true;
-            p.emit_point_events = false;
+            p.emit_point_events = CFG_SCAN_EMIT_POINT_EVENTS;
+            p.filter_point_events_by_angle = CFG_SCAN_EMIT_POINT_EVENTS;
+            p.discard_points_outside_angle_window = true;
+            p.point_event_angle_center_deg = CFG_SCAN_ANGLE_CENTER_DEG;
+            p.point_event_angle_half_width_deg = CFG_SCAN_ANGLE_HALF_WIDTH_DEG;
+            p.target_sweep_passes = CFG_SCAN_TARGET_SWEEP_PASSES;
         } else if (CFG_EXPERIMENT_PROFILE == ExperimentProfile::Benchmark) {
             p.enable_servo = false;
             p.enable_network = false;
@@ -100,6 +118,7 @@ public:
         telemetry::note_config_loaded(cfg_.wifi_ssid, cfg_.tcp_ip, cfg_.tcp_port, cfg_.batch_size);
 
         if (p.enable_servo) {
+            servo_.configure_sweep(CFG_SCAN_SERVO_MIN_DEG, CFG_SCAN_SERVO_MAX_DEG);
             servo_.init();
         }
 

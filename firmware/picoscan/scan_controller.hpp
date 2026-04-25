@@ -11,10 +11,12 @@ struct ScanParams {
     bool enable_network = true;
     bool emit_point_events = false;
     bool filter_point_events_by_angle = false;
+    bool discard_points_outside_angle_window = false;
     float point_event_angle_center_deg = 0.0f;
     float point_event_angle_half_width_deg = 0.0f;
     uint32_t target_duration_s = 0;
     uint32_t target_point_events = 0;
+    uint32_t target_sweep_passes = 0;
 };
 
 class ScanController {
@@ -50,5 +52,6 @@ private:
 
     void process_lidar_frame();
     void handle_transmission();
+    bool is_angle_inside_window(float angle) const;
     bool should_emit_point(float angle) const;
 };

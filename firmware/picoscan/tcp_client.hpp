@@ -40,6 +40,7 @@ private:
     int points_count;
     struct tcp_pcb *tcp_pcb;
     ip_addr_t remote_addr;
+    uint16_t remote_port;
     uint8_t tx_buffer[TX_BUF_SIZE];     // Buffer para envío
     uint8_t rx_buffer[RX_BUF_SIZE];     // Buffer mínimo para handshake
     int tx_buffer_len;
