@@ -1,0 +1,10 @@
+Metrica	SDK de C	MicroPython
+Replicas	3	3
+Duracion por replica (s)	60	60
+Frames/s	415.06 ± 0.09	216.03 ± 7.15
+Puntos/s	4942.93 ± 0.41	2590.95 ± 84.30
+Bytes/s (UART)	19508.80 ± 4.76	15498.87 ± 108.45
+Tiempo promedio por frame (us)	2072.67 ± 0.58	3820.67 ± 83.08
+Tiempo promedio de parsing (us)	57.00 ± 0.00	2644.33 ± 4.51
+Tasa de error (%)	0.11 ± 0.05	27.56 ± 2.13
+Errores CRC (total por replica)	0.00 ± 0.00	4931.00 ± 366.64

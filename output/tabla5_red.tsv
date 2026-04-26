@@ -1,0 +1,12 @@
+Metrica	SDK de C	MicroPython
+Duracion (s)	60	60
+Unidad de transmision	Lote binario (batch)	Mensaje WebSocket (texto)
+Unidades enviadas	1431	2667
+Intentos de envio fallidos	20853	5
+Tasa de exito de envio (%)	6.42	99.81
+Tamano medio por unidad (bytes)	891.0	432.0
+Payload bytes/s	21249.5	19195.9
+Bytes/s WebSocket	21440.1	19551.0
+Puntos/s procesados bajo carga de red	4385.1	525.8
+Tasa de error UART (%)	0.036	26.094
+Tiempo promedio de parsing (us)	74	4330
