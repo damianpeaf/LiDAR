@@ -1,0 +1,4 @@
+Enfoque	Sensor	Implementacion	Puntos/s (media +/- desv. est.)
+Punto unico	TF-Mini S	MicroPython	12.69 ± 1.10
+Multipunto	LD19	SDK de C	4942.93 ± 0.33
+Multipunto	LD19	MicroPython	2590.95 ± 68.83

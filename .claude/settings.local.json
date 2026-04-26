@@ -13,7 +13,8 @@
       "Bash(python -c \"import urllib.request; r = urllib.request.urlopen\\('https://pub-4fbb31ff60a64dc0a85d1af67478682f.r2.dev/test-file/t3-210.json'\\); print\\(r.status, r.read\\(100\\)\\)\")",
       "Bash(python -c \"import random; random.seed\\(42\\); print\\(random.randint\\(25,35\\), random.randint\\(25,35\\)\\)\")",
       "Bash(python3 -c ' *)",
-      "Bash(python *)"
+      "Bash(python *)",
+      "Bash(pip install *)"
     ]
   }
 }
