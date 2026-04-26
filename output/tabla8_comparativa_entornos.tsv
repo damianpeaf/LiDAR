@@ -1,0 +1,3 @@
+Entorno	N escaneos	Puntos totales	Cobertura horizontal (deg)	Cobertura vertical (deg)	Densidad angular (pts/deg2)	Distancia media de retorno (mm)	Voxeles ocupados (20 mm)	Intensidad media	Saturados (%)
+Semicerrado	2	686742 +- 37937	359.9 +- 0.0	179.3 +- 0.0	10.64 +- 0.59	758 +- 64	78944 +- 10974	182.5 +- 0.6	3.75 +- 3.08
+Abierto	4	940494 +- 110187	359.9 +- 0.0	179.5 +- 0.3	14.56 +- 1.69	1166 +- 431	128939 +- 46980	159.3 +- 9.8	3.48 +- 3.64

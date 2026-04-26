@@ -1,0 +1,7 @@
+Escaneo	Entorno	Puntos totales	Cobertura horizontal (deg)	Cobertura vertical (deg)	Densidad angular (pts/deg²)	Distancia media de retorno (mm)	Distancia mediana NN (mm)	Voxeles ocupados (20 mm)	CV densidad por voxel	Intensidad media	Intensidad desv. est.	Puntos saturados (intensity=255)	Saturados (%)
+Juego de Pelota E1	Semicerrado	713,567	359.9	179.3	11.06	804	0.75	86,704	26.463	182.1	60.4	42,281	5.93
+Juego de Pelota E2	Semicerrado	659,916	359.9	179.3	10.23	713	1.00	71,185	21.536	182.9	53.2	10,388	1.57
+Pared Estructura 38 E1	Abierto	999,070	359.9	179.6	15.46	1488	0.78	165,132	39.944	165.7	75.0	71,086	7.12
+Pared Estructura 38 E2	Abierto	986,707	359.9	179.5	15.27	1576	0.54	167,391	38.721	163.8	75.3	60,115	6.09
+Escalera Palacio E1	Abierto	1,000,721	359.9	179.7	15.48	710	0.39	68,737	20.719	163.1	63.2	6,230	0.62
+Escalera Palacio E2	Abierto	775,480	359.9	179.0	12.04	889	0.98	114,497	30.994	144.7	51.9	579	0.07
