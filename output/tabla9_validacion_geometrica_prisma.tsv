@@ -1,0 +1,4 @@
+Dimension	Real (mm)	Medido (mm)	Desv. est. (mm)	Error absoluto (mm)	Error relativo (%)	Metodo CloudCompare
+Ancho	92.0	118.0	6.1	26.0	28.3	Distancia entre planos seccionantes
+Largo	133.0	123.5	-	9.5	7.2	Distancia entre esquinas (deltaXY)
+Alto	88.0	95.5	-	7.5	8.5	Distancia entre esquinas (deltaZY)
